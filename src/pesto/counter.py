@@ -4,7 +4,7 @@ from typing import Self
 
 
 class Counter(Iterator[int], Sized):
-    __slots__ = ("_count", "_lock")
+    __slots__ = ("__weakref__", "_count", "_lock")
 
     def __init__(self, start: int = 0) -> None:
         self._count = start

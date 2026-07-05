@@ -26,7 +26,7 @@ class QueryDef[T, **P = ...]:
     fn: QueryFn[P, T]
     call_id_fn: CallIdFn[P]
 
-    __slots__ = ("call_id_fn", "fn")
+    __slots__ = ("__weakref__", "call_id_fn", "fn")
 
     def __init__(
         self,

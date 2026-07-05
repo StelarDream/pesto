@@ -1,9 +1,8 @@
 from typing import TYPE_CHECKING, Any, overload
 from weakref import WeakKeyDictionary
 
-from input import Input
-
 from .counter import Counter
+from .input import Input
 
 if TYPE_CHECKING:
     from .call_id import CallId
@@ -15,7 +14,7 @@ class DataBase:
     input_values: WeakKeyDictionary[Input[Any], Any]
     revision: Counter
 
-    __slots__ = ("query_caches", "revision")
+    __slots__ = ("__weakref__", "query_caches", "revision")
 
     def __init__(self) -> None:
         self.query_caches = WeakKeyDictionary()

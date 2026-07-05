@@ -5,7 +5,7 @@ if TYPE_CHECKING:
 
 
 class Input[T]:
-    __slots__ = ()
+    __slots__ = ("__weakref__",)
 
     @property
     def default(self) -> T:
@@ -24,7 +24,7 @@ class Input[T]:
 class _InputWithDefaultValue[T](Input[T]):
     default_value: T
 
-    __slots__ = ("default_value",)
+    __slots__ = ("__weakref__", "default_value")
 
     def __init__(self, default_value: T) -> None:
         self.default_value = default_value
@@ -37,7 +37,7 @@ class _InputWithDefaultValue[T](Input[T]):
 class _InputWithDefaultFactory[T](Input[T]):
     default_factory: Callable[[], T]
 
-    __slots__ = ("default_factory",)
+    __slots__ = ("__weakref__", "default_factory")
 
     def __init__(self, default_factory: Callable[[], T]) -> None:
         self.default_factory = default_factory
