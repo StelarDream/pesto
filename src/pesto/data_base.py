@@ -18,6 +18,7 @@ class DataBase:
 
     def __init__(self) -> None:
         self.query_caches = WeakKeyDictionary()
+        self.input_values = WeakKeyDictionary()
         self.revision = Counter()
 
     def now(self) -> int:
