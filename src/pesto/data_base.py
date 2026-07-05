@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
 if TYPE_CHECKING:
-    from .queries import CallId, QueryCache, QueryDef
+    from .call_key_generators import CallId
+    from .queries import QueryCache, QueryDef
 
 
 class DataBase:

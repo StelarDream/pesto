@@ -1,13 +1,12 @@
-from collections.abc import Callable, Hashable
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Concatenate
 
+from .call_key_generators import CallKeyGen, inspect_call_key_gen
 from .data_base import DataBase
-from .key_generators import CallKeyGen, inspect_call_key_gen
 
 if TYPE_CHECKING:
     from .comparators import Comparator, ComparatorState
 
-type CallId = Hashable  # readability
 type QueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 
 

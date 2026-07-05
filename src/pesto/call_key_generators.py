@@ -1,11 +1,11 @@
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from typing import Any, Concatenate
 
-from .queries import CallId, QueryFn
+from .queries import QueryFn
 
+type CallId = Hashable  # readability
 type CallKeyGen[**P] = Callable[Concatenate[QueryFn[P, Any], P], CallId]
-
 
 def inspect_call_key_gen[**P](
     fn: QueryFn[P, Any],
