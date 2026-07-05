@@ -5,12 +5,12 @@ from typing import Any, Concatenate
 from .queries import QueryFn
 
 type CallId = Hashable  # readability
-type CallKeyGen[**P] = Callable[Concatenate[QueryFn[P, Any], P], CallId]
+type CallKeyGen = Callable[Concatenate[QueryFn[..., Any], ...], CallId]
 
-def inspect_call_key_gen[**P](
-    fn: QueryFn[P, Any],
-    *args: P.args,
-    **kwargs: P.kwargs,
+def inspect_call_key_gen(
+    fn: QueryFn[..., Any],
+    *args: object,
+    **kwargs: object,
 ) -> CallId:
     sig = inspect.signature(fn).bind(None, *args, **kwargs)
     sig.apply_defaults()

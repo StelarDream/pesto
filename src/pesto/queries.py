@@ -22,7 +22,7 @@ class QueryCache[T]:
 
 class QueryDef[T, **P = ...]:
     fn: QueryFn[P, T]
-    call_key_gen: CallKeyGen[P] = inspect_call_key_gen
+    call_key_gen: CallKeyGen = inspect_call_key_gen
 
     __slots__ = ("fn",)
 
