@@ -10,11 +10,11 @@ if TYPE_CHECKING:
 
 
 class DataBase:
-    query_caches: WeakKeyDictionary[QueryDef[Any], dict[CallId, QueryCache[Any]]]
     input_values: WeakKeyDictionary[Input[Any], Any]
+    query_caches: WeakKeyDictionary[QueryDef[Any], dict[CallId, QueryCache[Any]]]
     revision: Counter
 
-    __slots__ = ("__weakref__", "query_caches", "revision")
+    __slots__ = ("__weakref__", "input_values", "query_caches", "revision")
 
     def __init__(self) -> None:
         self.query_caches = WeakKeyDictionary()
