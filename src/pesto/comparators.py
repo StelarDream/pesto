@@ -1,11 +1,11 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
-from weakref import WeakKeyDictionary
+from weakref import WeakSet
 
 from .data_base import DataBase
 
 if TYPE_CHECKING:
-    from .queries import QueryDef
+    from pesto.queries import Query
 
 type ComparatorFn[T] = Callable[[DataBase, T, T], bool]
 
@@ -23,15 +23,15 @@ class Comparator[T]:
 
 
 class ComparatorState:
-    ref_counters: WeakKeyDictionary[QueryDef[Any], int]
-    changed_at: int
+    verified_at: int
+    references: WeakSet[Query[Any]]
 
-    __slots__ = ("changed_at", "ref_counters")
+    __slots__ = ("references", "verified_at")
 
     def __init__(self, db: DataBase) -> None:
-        self.ref_counters = WeakKeyDictionary()
-        self.changed_at = db.now()
+        self.references = WeakSet()
+        self.verified_at = db.now()
 
     @property
     def ref_count(self) -> int:
-        return sum(self.ref_counters.values())
+        return len(self.references)

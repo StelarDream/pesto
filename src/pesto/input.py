@@ -13,11 +13,11 @@ class Input[T]:
         raise NotImplementedError(msg)
 
     @staticmethod
-    def with_default[T2](default: T2) -> Input[T2]:
+    def set_default[V](default: V) -> Input[V]:
         return _InputWithDefaultValue(default)
 
     @staticmethod
-    def with_default_factory[T2](default_factory: Callable[[], T2]) -> Input[T2]:
+    def set_default_factory[V](default_factory: Callable[[], V]) -> Input[V]:
         return _InputWithDefaultFactory(default_factory)
 
 

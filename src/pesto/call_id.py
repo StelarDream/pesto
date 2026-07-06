@@ -5,7 +5,7 @@ from typing import Any, Concatenate
 from .queries import QueryFn
 
 type CallId = Hashable  # readability
-type CallIdFn[**P] = Callable[Concatenate[QueryFn[P, Any], P], CallId]
+type QueryIdFn[**P] = Callable[Concatenate[QueryFn[P, Any], P], CallId]
 
 
 def inspect_call_id_fn[**P](

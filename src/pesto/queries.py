@@ -1,47 +1,75 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Concatenate
+from typing import TYPE_CHECKING, Concatenate
 
-from .call_id import CallIdFn, inspect_call_id_fn
-from .data_base import Cell, DataBase
+from .call_id import inspect_call_id_fn
 
 if TYPE_CHECKING:
-    from .call_id import CallId
-    from .comparators import Comparator
-    from .data_base import NodeKey
+    from .call_id import CallId, QueryIdFn
+    from .data_base import DataBase
+
 
 type QueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 
 
-class QueryCache[T](Cell[T]):
-    verified_at: int
-    recorded_edges: dict[NodeKey[Any], Comparator[Any]]
-
-    __slots__ = ("recorded_edges", "verified_at")
-
-    def __init__(self, value: T, db: DataBase) -> None:
-        self.value = value
-        self.comparators = {}
-        self.verified_at = db.now()
-
-
-class QueryDef[T, **P = ...]:
+class QueryDef[**P, T]:
     fn: QueryFn[P, T]
-    call_id_fn: CallIdFn[P]
+    query_id_fn: QueryIdFn[P]
 
-    __slots__ = ("__weakref__", "call_id_fn", "fn")
+    # IMMENSELY IMPORTANT ! this is what keeps references to queries alive
+    all_queries: dict[CallId, Query[T]]
+
+    __slots__ = ("all_queries", "fn", "query_id_fn")
 
     def __init__(
         self,
         fn: QueryFn[P, T],
-        *,
-        call_id: CallIdFn[P] = inspect_call_id_fn,
+        call_id_fn: QueryIdFn[P] = inspect_call_id_fn,
     ) -> None:
         self.fn = fn
-        self.call_id_fn = call_id
+        self.query_id_fn = call_id_fn
+        self.all_queries = {}
 
-    def __call__(self, db: DataBase, *args: P.args, **kwargs: P.kwargs) -> T:
-        msg = "missing db hook for cache and computation"
-        raise NotImplementedError(msg)
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Query[T]:
+        return self.get_query(*args, **kwargs)
 
-    def call_id(self, *args: P.args, **kwargs: P.kwargs) -> CallId:
-        return self.call_id_fn(self.fn, *args, **kwargs)
+    def get_query_id(self, *args: P.args, **kwargs: P.kwargs) -> CallId:
+        return self.query_id_fn(self.fn, *args, **kwargs)
+
+    def get_query(self, *args: P.args, **kwargs: P.kwargs) -> Query[T]:
+        call_id = self.get_query_id(*args, **kwargs)
+        if call_id in self.all_queries:
+            return self.all_queries[call_id]
+
+        query = Query(
+            fn=lambda db: self.fn(db, *args, **kwargs),
+            del_fn=lambda: self.all_queries.__delitem__(call_id),
+        )
+
+        self.all_queries[call_id] = query
+        return query
+
+    def del_query(self, *args: P.args, **kwargs: P.kwargs) -> None:
+        call_id = self.get_query_id(*args, **kwargs)
+        del self.all_queries[call_id]
+
+
+class Query[T]:
+    fn: Callable[[DataBase], T]
+    del_fn: Callable[[], None] | None
+
+    __slots__ = ("__weakref__", "del_fn", "fn")
+
+    def __init__(
+        self,
+        fn: Callable[[DataBase], T],
+        del_fn: Callable[[], None] | None = None,
+    ) -> None:
+        self.fn = fn
+        self.del_fn = del_fn
+
+    def __call__(self, db: DataBase) -> T:
+        raise NotImplementedError
+
+    def __del__(self) -> None:
+        if self.del_fn:
+            self.del_fn()
