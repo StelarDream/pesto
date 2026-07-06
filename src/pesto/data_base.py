@@ -16,11 +16,12 @@ class Cell[T]:
     comparators: dict[Comparator[T], ComparatorState]
     changed_at: int
 
-    __slots__ = ("comparators", "value")
+    __slots__ = ("changed_at", "comparators", "value")
 
-    def __init__(self, value: T) -> None:
+    def __init__(self, value: T, db: DataBase) -> None:
         self.value = value
         self.comparators = {}
+        self.changed_at = db.now()
 
 
 class DataBase:

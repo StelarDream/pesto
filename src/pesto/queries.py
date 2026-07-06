@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Concatenate
+from typing import TYPE_CHECKING, Any, Concatenate
 
 from .call_id import inspect_call_id_fn
 
@@ -42,7 +42,7 @@ class QueryDef[**P, T]:
 
         query = Query(
             fn=lambda db: self.fn(db, *args, **kwargs),
-            del_fn=lambda: self.all_queries.__delitem__(call_id),
+            del_fn=lambda: self.all_queries.pop(call_id, None),
         )
 
         self.all_queries[call_id] = query
@@ -55,14 +55,14 @@ class QueryDef[**P, T]:
 
 class Query[T]:
     fn: Callable[[DataBase], T]
-    del_fn: Callable[[], None] | None
+    del_fn: Callable[[], Any] | None
 
     __slots__ = ("__weakref__", "del_fn", "fn")
 
     def __init__(
         self,
         fn: Callable[[DataBase], T],
-        del_fn: Callable[[], None] | None = None,
+        del_fn: Callable[[], Any] | None = None,
     ) -> None:
         self.fn = fn
         self.del_fn = del_fn
