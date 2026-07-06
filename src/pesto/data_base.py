@@ -5,13 +5,13 @@ from pesto.sentinels import MISSING, MissingType
 
 from .comparators import ComparatorState
 from .counter import Counter
-from .input import Input
+from .source import Source
 
 if TYPE_CHECKING:
     from .comparators import Comparator
     from .queries import Query
 
-type Node[T] = Input[T] | Query[T]
+type Node[T] = Source[T] | Query[T]
 
 
 class Cell[T]:
@@ -37,7 +37,7 @@ class Cell[T]:
 
 
 class DataBase:
-    input_data: WeakKeyDictionary[Input[Any], Cell[Any]]
+    input_data: WeakKeyDictionary[Source[Any], Cell[Any]]
     query_data: WeakKeyDictionary[Query[Any], Cell[Any]]
     revision: Counter
 
@@ -58,7 +58,7 @@ class DataBase:
     @overload
     def get_input[T](
         self,
-        inpt: Input[T],
+        source: Source[T],
         *,
         comparator: Comparator[T] | None = None,
     ) -> T: ...
@@ -66,7 +66,7 @@ class DataBase:
     @overload
     def get_input[T, D](
         self,
-        inpt: Input[T],
+        source: Source[T],
         *,
         default: D,
         comparator: Comparator[T] | None = None,
@@ -74,51 +74,32 @@ class DataBase:
 
     def get_input[T, D](
         self,
-        inpt: Input[T],
+        source: Source[T],
         *,
         comparator: Comparator[T] | None = None,
         default: D | MissingType = MISSING,
     ) -> T | D:
-        if inpt in self.input_data:
-            return self.input_data[inpt].value
-
-        if not inpt.has_default:
+        if source in self.input_data:
+            cell = self.input_data[source]
+        elif source.has_default:
+            source_default = source.default
+            cell = Cell(source_default, self)
+            self.input_data[source] = cell
+        else:
             if default is MISSING:
                 raise KeyError
             return default
 
-        input_default = inpt.default
-        cell = Cell(input_default, self)
-
         if comparator:
             cell.add_ref(self, comparator, self.stack_current())
 
-        self.input_data[inpt] = cell
-        return input_default
+        return cell.value
 
-    @overload
     def get_query[T](
         self,
         query: Query[T],
-        *,
         comparator: Comparator[T] | None = None,
-    ) -> T: ...
-
-    @overload
-    def get_query[T, D](
-        self,
-        query: Query[T],
-        *,
-        default: D,
-        comparator: Comparator[T] | None = None,
-    ) -> T | D: ...
-
-    def get_query[T, D](
-        self,
-        query: Query[T],
-        comparator: Comparator[T] | None = None,
-        default: D | MissingType = MISSING,
-    ) -> T | D:
+    ) -> T:
         msg = "work in progress"
         raise NotImplementedError(msg)
 

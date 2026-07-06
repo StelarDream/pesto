@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Self
 from weakref import WeakSet
@@ -39,3 +40,15 @@ class ComparatorState:
     def add_ref(self, query: Query[Any]) -> Self:
         self.references.add(query)
         return self
+
+
+def comparator[T](fn: ComparatorFn[T]) -> ComparatorFn[T]:
+    return functools.wraps(fn)(Comparator(fn))
+
+
+# --- Comparators ---
+
+
+@comparator
+def comparator_eq[T](db: DataBase, old: T, new: T) -> bool:  # noqa: ARG001
+    return old == new

@@ -2,14 +2,14 @@ import inspect
 from collections.abc import Callable, Hashable
 from typing import Any, Concatenate
 
-from .queries import QueryFn
+from .queries import RawQueryFn
 
 type CallId = Hashable  # readability
-type QueryIdFn[**P] = Callable[Concatenate[QueryFn[P, Any], P], CallId]
+type QueryIdFn[**P] = Callable[Concatenate[RawQueryFn[P, Any], P], CallId]
 
 
 def inspect_call_id_fn[**P](
-    fn: QueryFn[P, Any],
+    fn: RawQueryFn[P, Any],
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> CallId:

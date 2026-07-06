@@ -1,3 +1,4 @@
+import functools
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate
 
@@ -8,11 +9,13 @@ if TYPE_CHECKING:
     from .data_base import DataBase
 
 
-type QueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
+type QueryFn[T] = Callable[[DataBase], T]
+type RawQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
+type QueryFactory[**P, T] = Callable[P, QueryFn[T]]
 
 
 class QueryDef[**P, T]:
-    fn: QueryFn[P, T]
+    fn: RawQueryFn[P, T]
     query_id_fn: QueryIdFn[P]
 
     # IMMENSELY IMPORTANT ! this is what keeps references to queries alive
@@ -22,7 +25,7 @@ class QueryDef[**P, T]:
 
     def __init__(
         self,
-        fn: QueryFn[P, T],
+        fn: RawQueryFn[P, T],
         call_id_fn: QueryIdFn[P] = inspect_call_id_fn,
     ) -> None:
         self.fn = fn
@@ -73,3 +76,12 @@ class Query[T]:
     def __del__(self) -> None:
         if self.del_fn:
             self.del_fn()
+
+
+class query:  # noqa: N801
+    def __new__[T](cls, fn: QueryFn[T]) -> QueryFn[T]:
+        return functools.wraps(fn)(Query(fn))
+
+    @staticmethod
+    def with_args[**P, T](fn: RawQueryFn[P, T]) -> QueryFactory[P, T]:
+        return functools.wraps(fn)(QueryDef(fn))
