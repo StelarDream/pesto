@@ -1,25 +1,27 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Concatenate
+from typing import TYPE_CHECKING, Any, Concatenate
 
 from .call_id import CallIdFn, inspect_call_id_fn
-from .data_base import DataBase
+from .data_base import Cell, DataBase
 
 if TYPE_CHECKING:
     from .call_id import CallId
-    from .comparators import Comparator, ComparatorState
+    from .comparators import Comparator
+    from .data_base import NodeKey
 
 type QueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 
 
-class QueryCache[T]:
-    value: T
-    comparators: dict[Comparator[T], ComparatorState]
+class QueryCache[T](Cell[T]):
+    verified_at: int
+    recorded_edges: dict[NodeKey[Any], Comparator[Any]]
 
-    __slots__ = ("comparators", "value")
+    __slots__ = ("recorded_edges", "verified_at")
 
-    def __init__(self, value: T) -> None:
+    def __init__(self, value: T, db: DataBase) -> None:
         self.value = value
         self.comparators = {}
+        self.verified_at = db.now()
 
 
 class QueryDef[T, **P = ...]:

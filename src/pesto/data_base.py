@@ -6,15 +6,29 @@ from .input import Input
 
 if TYPE_CHECKING:
     from .call_id import CallId
+    from .comparators import Comparator, ComparatorState
     from .queries import QueryCache, QueryDef
+
+type NodeKey[T, **P = ...] = Input[T] | QueryDef[T, P]
+
+
+class Cell[T]:
+    value: T
+    comparators: dict[Comparator[T], ComparatorState]
+
+    __slots__ = ("comparators", "value")
+
+    def __init__(self, value: T) -> None:
+        self.value = value
+        self.comparators = {}
 
 
 class DataBase:
-    input_values: WeakKeyDictionary[Input[Any], Any]
+    input_values: WeakKeyDictionary[Input[Any], Cell[Any]]
     query_caches: WeakKeyDictionary[QueryDef[Any], dict[CallId, QueryCache[Any]]]
     revision: Counter
 
-    __slots__ = ("__weakref__", "input_values", "query_caches", "revision")
+    __slots__ = ("input_values", "query_caches", "revision")
 
     def __init__(self) -> None:
         self.query_caches = WeakKeyDictionary()
@@ -49,7 +63,7 @@ class DataBase:
         **kwargs: P.kwargs,
     ) -> T:
         if isinstance(key, Input):
-            return self.input_values.setdefault(key, key.default)
+            return self.input_values.setdefault(key, Cell(key.default)).value
 
         msg = "the query code path is no yet made"
         raise NotImplementedError(msg)

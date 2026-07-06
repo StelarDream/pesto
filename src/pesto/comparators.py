@@ -13,7 +13,7 @@ type ComparatorFn[T] = Callable[[DataBase, T, T], bool]
 class Comparator[T]:
     fn: ComparatorFn[T]
 
-    __slots__ = ("__weakref__", "fn")
+    __slots__ = ("fn",)
 
     def __init__(self, fn: ComparatorFn[T]) -> None:
         self.fn = fn
@@ -26,7 +26,7 @@ class ComparatorState:
     ref_counters: WeakKeyDictionary[QueryDef[Any], int]
     changed_at: int
 
-    __slots__ = ("__weakref__", "changed_at", "ref_counters")
+    __slots__ = ("changed_at", "ref_counters")
 
     def __init__(self, db: DataBase) -> None:
         self.ref_counters = WeakKeyDictionary()
