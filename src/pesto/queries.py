@@ -2,11 +2,11 @@ import functools
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate
 
-from .call_id import inspect_call_id_fn
+from .call_id_fns import inspect_call_id_fn
 
 if TYPE_CHECKING:
-    from .call_id import CallId, QueryIdFn
-    from .data_base import DataBase
+    from .call_id_fns import CallId, QueryIdFn
+    from .data_bases import DataBase
 
 
 type QueryFn[T] = Callable[[DataBase], T]

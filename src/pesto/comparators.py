@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Self
 from weakref import WeakSet
 
-from .data_base import DataBase
+from .data_bases import DataBase
 
 if TYPE_CHECKING:
     from pesto.queries import Query
@@ -31,7 +31,7 @@ class ComparatorState:
 
     def __init__(self, db: DataBase) -> None:
         self.references = WeakSet()
-        self.verified_at = db.now()
+        self.verified_at = db.now
 
     @property
     def ref_count(self) -> int:

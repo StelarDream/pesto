@@ -1,44 +1,19 @@
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Any, overload
 from weakref import WeakKeyDictionary
 
-from pesto.sentinels import MISSING, MissingType
-
-from .comparators import ComparatorState
-from .counter import Counter
-from .source import Source
+from .cells import Cell, QueryCell
+from .counters import Counter
+from .sentinels import MISSING, MissingType
 
 if TYPE_CHECKING:
     from .comparators import Comparator
     from .queries import Query
-
-type Node[T] = Source[T] | Query[T]
-
-
-class Cell[T]:
-    value: T
-    comparators: dict[Comparator[T], ComparatorState]
-    changed_at: int
-
-    __slots__ = ("changed_at", "comparators", "value")
-
-    def __init__(self, value: T, db: DataBase) -> None:
-        self.value = value
-        self.comparators = {}
-        self.changed_at = db.now()
-
-    def add_ref(
-        self,
-        db: DataBase,
-        comparator: Comparator[Any],
-        caller: Query[Any],
-    ) -> Self:
-        self.comparators.setdefault(comparator, ComparatorState(db)).add_ref(caller)
-        return self
+    from .sources import Source
 
 
 class DataBase:
     input_data: WeakKeyDictionary[Source[Any], Cell[Any]]
-    query_data: WeakKeyDictionary[Query[Any], Cell[Any]]
+    query_data: WeakKeyDictionary[Query[Any], QueryCell[Any]]
     revision: Counter
 
     __slots__ = ("input_data", "query_data", "revision")
@@ -48,9 +23,11 @@ class DataBase:
         self.query_data = WeakKeyDictionary()
         self.revision = Counter()
 
+    @property
     def now(self) -> int:
         return self.revision.now()
 
+    @property
     def stack_current(self) -> Query[Any]:
         msg = "work in progress"
         raise NotImplementedError(msg)
@@ -68,8 +45,8 @@ class DataBase:
         self,
         source: Source[T],
         *,
-        default: D,
         comparator: Comparator[T] | None = None,
+        default: D,
     ) -> T | D: ...
 
     def get_input[T, D](
@@ -91,7 +68,7 @@ class DataBase:
             return default
 
         if comparator:
-            cell.add_ref(self, comparator, self.stack_current())
+            cell.track_caller(self, comparator, self.stack_current)
 
         return cell.value
 

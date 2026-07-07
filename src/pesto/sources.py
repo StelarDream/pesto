@@ -82,4 +82,7 @@ def source[T](
     default_value: T | MissingType = MISSING,
     default_factory: Callable[[], T] | None = None,
 ) -> Source[T]:
-    return Source[T].create(default_factory=default_factory, default_value=default_value)
+    return Source[T].create(
+        default_factory=default_factory,
+        default_value=default_value,
+    )
