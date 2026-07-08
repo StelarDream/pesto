@@ -85,4 +85,3 @@ class QueryDef[**P, T, K: CallId = CallId]:
     @property
     def __wrapped__(self) -> QueryFn[T]:
         return self.fn
-

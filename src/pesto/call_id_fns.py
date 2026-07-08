@@ -5,7 +5,10 @@ from typing import Any, Concatenate
 from .rich_queries import RichQueryFn
 
 type CallId = Hashable  # readability
-type QueryIdFn[**P, K: CallId = CallId] = Callable[Concatenate[RichQueryFn[P, Any], P], K]
+type QueryIdFn[**P, K: CallId = CallId] = Callable[
+    Concatenate[RichQueryFn[P, Any], P],
+    K,
+]
 
 
 def inspect_call_id_fn[**P](
