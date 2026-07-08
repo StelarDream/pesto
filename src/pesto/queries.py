@@ -1,3 +1,4 @@
+import weakref
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -12,21 +13,23 @@ type QueryFn[T] = Callable[[DataBase], T]
 
 
 class Query[T](Node[T]):
-    del_fn: Callable[[], Any] | None
+    fn: QueryFn[T]
 
-    __slots__ = ("__weakref__", "__wrapped__", "del_fn")
+    __slots__ = ("__weakref__", "del_fn", "fn")
 
     def __init__(
         self,
         fn: QueryFn[T],
         del_fn: Callable[[], Any] | None = None,
     ) -> None:
-        self.__wrapped__ = fn
-        self.del_fn = del_fn
+        self.fn = fn
+
+        if del_fn is not None:
+            weakref.finalize(self, del_fn)
 
     def __call__(self, db: DataBase) -> T:
         return self.get(db)
 
-    def __del__(self) -> None:
-        if self.del_fn:
-            self.del_fn()
+    @property
+    def __wrapped__(self) -> QueryFn[T]:
+        return self.fn
