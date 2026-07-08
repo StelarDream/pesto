@@ -1,87 +1,32 @@
-import functools
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Concatenate
+from typing import TYPE_CHECKING, Any
 
-from .call_id_fns import inspect_call_id_fn
+from .bases import Node
+from .data_bases import DataBase
 
 if TYPE_CHECKING:
-    from .call_id_fns import CallId, QueryIdFn
     from .data_bases import DataBase
 
 
 type QueryFn[T] = Callable[[DataBase], T]
-type RawQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
-type QueryFactory[**P, T] = Callable[P, QueryFn[T]]
 
 
-class QueryDef[**P, T]:
-    fn: RawQueryFn[P, T]
-    query_id_fn: QueryIdFn[P]
-
-    # IMMENSELY IMPORTANT ! this is what keeps references to queries alive
-    all_queries: dict[CallId, Query[T]]
-
-    __slots__ = ("all_queries", "fn", "query_id_fn")
-
-    def __init__(
-        self,
-        fn: RawQueryFn[P, T],
-        call_id_fn: QueryIdFn[P] = inspect_call_id_fn,
-    ) -> None:
-        self.fn = fn
-        self.query_id_fn = call_id_fn
-        self.all_queries = {}
-
-    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Query[T]:
-        return self.get_query(*args, **kwargs)
-
-    def get_query_id(self, *args: P.args, **kwargs: P.kwargs) -> CallId:
-        return self.query_id_fn(self.fn, *args, **kwargs)
-
-    def get_query(self, *args: P.args, **kwargs: P.kwargs) -> Query[T]:
-        call_id = self.get_query_id(*args, **kwargs)
-        if call_id in self.all_queries:
-            return self.all_queries[call_id]
-
-        query = Query(
-            fn=lambda db: self.fn(db, *args, **kwargs),
-            del_fn=lambda: self.all_queries.pop(call_id, None),
-        )
-
-        self.all_queries[call_id] = query
-        return query
-
-    def del_query(self, *args: P.args, **kwargs: P.kwargs) -> None:
-        call_id = self.get_query_id(*args, **kwargs)
-        del self.all_queries[call_id]
-
-
-class Query[T]:
-    fn: Callable[[DataBase], T]
+class Query[T](Node[T]):
     del_fn: Callable[[], Any] | None
 
-    __slots__ = ("__weakref__", "del_fn", "fn")
+    __slots__ = ("__weakref__", "__wrapped__", "del_fn")
 
     def __init__(
         self,
-        fn: Callable[[DataBase], T],
+        fn: QueryFn[T],
         del_fn: Callable[[], Any] | None = None,
     ) -> None:
-        self.fn = fn
+        self.__wrapped__ = fn
         self.del_fn = del_fn
 
     def __call__(self, db: DataBase) -> T:
-        raise NotImplementedError
+        return self.get(db)
 
     def __del__(self) -> None:
         if self.del_fn:
             self.del_fn()
-
-
-class query:  # noqa: N801
-    def __new__[T](cls, fn: QueryFn[T]) -> QueryFn[T]:
-        return functools.wraps(fn)(Query(fn))
-
-    @staticmethod
-    def with_args[**P, T](fn: RawQueryFn[P, T]) -> QueryFactory[P, T]:
-        return functools.wraps(fn)(QueryDef(fn))

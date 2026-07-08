@@ -1,88 +1,64 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
-from pesto.sentinels import MISSING, MissingType
+from .bases import Node
+from .sentinels import MISSING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import overload
+
+    from .data_bases import DataBase
 
 
-class Source[T]:
-    __slots__ = ("__weakref__",)
+class Source[T](Node[T]):
+    """A named input slot that DBs read values for, with an optional initial value."""
 
-    @classmethod
-    def create(
-        cls,
-        *,
-        default_value: T | MissingType = MISSING,
-        default_factory: Callable[[], T] | None = None,
-    ) -> Source[T]:
-        if default_value is not MISSING and default_factory is not None:
-            msg = "can't have both default_value and default_factory"
-            raise ValueError(msg)
+    initial_value_factory: Callable[[], T] | None
 
-        if default_value is not MISSING:
-            return cls.set_default(default_value)
+    __slots__ = ("__weakref__", "initial_value_factory")
 
-        if default_factory is not None:
-            return cls.set_default_factory(default_factory)
+    def __init__(self, initial_value_factory: Callable[[], T] | None = None) -> None:
+        """Store the initial_value as a factory, not a value.
 
-        return cls()
+        A plain value would be shared and mutated across every DB instance
+        that falls back to this initial_value; a factory produces a fresh one each time.
+        """
+        self.initial_value_factory = initial_value_factory
 
-    @property
-    def default(self) -> T:
-        msg = "source has no default"
-        raise NotImplementedError(msg)
+    # --- Initial Value ---
 
-    @property
-    def has_default(self) -> bool:
-        return False
+    def set_initial_value_factory(self, initial_value_factory: Callable[[], T]) -> None:
+        """Set a initial value factory, not a value"""
+        self.initial_value_factory = initial_value_factory
 
-    @staticmethod
-    def set_default[V](default: V) -> Source[V]:
-        return _SourceWithDefaultValue(default)
+    def set_initial_value(self, initial_value: T) -> None:
+        """Set a fixed initial value, avoid giving a mutable"""
+        self.initial_value_factory = lambda: initial_value
 
-    @staticmethod
-    def set_default_factory[V](default_factory: Callable[[], V]) -> Source[V]:
-        return _SourceWithDefaultFactory(default_factory)
+    if TYPE_CHECKING:
+        # Overloads for type checkers (can be collapsed)
+        @overload
+        def get_initial_value(self) -> T: ...
+        @overload
+        def get_initial_value[D](self, default: D) -> T | D: ...
 
-    def __init_subclass__(cls, *, has_default: bool = False, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-        if has_default:
-            cls.has_default = property(lambda _: True)  # pyright: ignore[reportAttributeAccessIssue]
+    def get_initial_value[D](self, default: D = MISSING) -> T | D:
+        """Return a fresh initial value value, or `default` if none is set (and raises if no default is given)."""
+        if self.initial_value_factory is None:
+            if default is MISSING:
+                msg = "no initial_value found"
+                raise AttributeError(msg)
+            return default
 
+        return self.initial_value_factory()
 
-class _SourceWithDefaultValue[T](Source[T], has_default=True):
-    default_value: T
+    # --- DataBase entries management ---
 
-    __slots__ = ("default_value",)
+    def set(self, db: DataBase, value: T) -> Self:
+        raise NotImplementedError
 
-    def __init__(self, default_value: T) -> None:
-        self.default_value = default_value
+    def setdefault(self, db: DataBase, default: T) -> T:
+        raise NotImplementedError
 
-    @property
-    def default(self) -> T:
-        return self.default_value
-
-
-class _SourceWithDefaultFactory[T](Source[T], has_default=True):
-    default_factory: Callable[[], T]
-
-    __slots__ = ("default_factory",)
-
-    def __init__(self, default_factory: Callable[[], T]) -> None:
-        self.default_factory = default_factory
-
-    @property
-    def default(self) -> T:
-        return self.default_factory()
-
-
-def source[T](
-    *,
-    default_value: T | MissingType = MISSING,
-    default_factory: Callable[[], T] | None = None,
-) -> Source[T]:
-    return Source[T].create(
-        default_factory=default_factory,
-        default_value=default_value,
-    )
+    def __setitem__(self, key: DataBase, value: T) -> None:
+        self.set(key, value)

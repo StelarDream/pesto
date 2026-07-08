@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING, Any, Self
 from weakref import WeakSet
 
-from .comparators import ComparatorState
+from .comparators import ComparatorFn, ComparatorState
 from .data_bases import DataBase
 
 if TYPE_CHECKING:
-    from .comparators import Comparator
+    from .comparators import ComparatorFn
     from .data_bases import DataBase
     from .queries import Query
     from .sources import Source
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class Cell[T]:
     value: T
     changed_at: int
-    comparators: dict[Comparator[T], ComparatorState]
+    comparators: dict[ComparatorFn[T], ComparatorState]
 
     __slots__ = ("changed_at", "comparators", "value")
 
@@ -26,7 +26,7 @@ class Cell[T]:
     def track_caller(
         self,
         db: DataBase,
-        comparator: Comparator[T],
+        comparator: ComparatorFn[T],
         caller: Query[Any],
     ) -> Self:
         self.comparators.setdefault(comparator, ComparatorState(db)).add_ref(caller)
