@@ -48,7 +48,6 @@ class Cell[T]:
 
 
 class QueryCell[T](Cell[T]):
-    value: T
     dependencies: dict[Cell[Any], Comparator[Any]]
 
     def __init__(self, db: DataBase, value: T) -> None:
