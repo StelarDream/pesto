@@ -71,8 +71,8 @@ class DataBase:
 
         if query_cell is None:
             query_cell = query.cell(self)
-            query_cell.value = self.run(query)
             self.query_data[query] = query_cell
+            query_cell.value = self.run(query)
         elif not query_cell.is_up_to_date():
             query_cell.reset_deps()
             old = query_cell.value
