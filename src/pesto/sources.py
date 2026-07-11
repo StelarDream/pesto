@@ -1,18 +1,14 @@
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
-from .bases import Node
+from .cells import Cell
 from .sentinels import MISSING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import overload
 
-    from .data_bases import DataBase
 
-
-class Source[T](Node[T]):
-    """A named input slot that DBs read values for, with an optional initial value."""
-
+class Source[T]:
     initial_value_factory: Callable[[], T] | None
 
     __slots__ = ("__weakref__", "initial_value_factory")
@@ -52,13 +48,6 @@ class Source[T](Node[T]):
 
         return self.initial_value_factory()
 
-    # --- DataBase entries management ---
-
-    def set(self, db: DataBase, value: T) -> Self:
-        raise NotImplementedError
-
-    def setdefault(self, db: DataBase, default: T) -> T:
-        raise NotImplementedError
-
-    def __setitem__(self, key: DataBase, value: T) -> None:
-        self.set(key, value)
+    @property
+    def cell(self) -> type[Cell[T]]:
+        return Cell

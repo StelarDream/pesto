@@ -1,7 +1,7 @@
 [project]
 name = "pesto"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pesto is an Incremental Computation (IC) framework for Python, in the spirit of [Salsa](https://github.com/salsa-rs/salsa), with extras."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
