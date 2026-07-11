@@ -11,8 +11,7 @@ class Cell[T]:
     verified_at: int
     comparator_states: dict[Comparator[Any], ComparatorState]
 
-    def __init__(self, db: DataBase, value: T) -> None:
-        self.value = value
+    def __init__(self, db: DataBase) -> None:
         self.verified_at = db.now()
         self.comparator_states = {}
 
@@ -50,8 +49,8 @@ class Cell[T]:
 class QueryCell[T](Cell[T]):
     dependencies: dict[Cell[Any], Comparator[Any]]
 
-    def __init__(self, db: DataBase, value: T) -> None:
-        super().__init__(db, value)
+    def __init__(self, db: DataBase) -> None:
+        super().__init__(db)
         self.dependencies = {}
 
     def add_dep[V](self, depends_on: Cell[V], comparator: Comparator[V]) -> None:

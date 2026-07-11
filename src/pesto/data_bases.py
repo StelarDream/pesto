@@ -43,8 +43,10 @@ class DataBase:
 
     def get_source[T](self, source: Source[T], comparator: Comparator[T] = eq) -> T:
         cell = self.source_data.get(source)
+
         if cell is None:
-            cell = source.cell(self, source.get_initial_value())
+            cell = source.cell(self)
+            cell.value = source.get_initial_value()
             self.source_data[source] = cell
 
         self.record_dependencies(cell, comparator)
@@ -54,7 +56,9 @@ class DataBase:
     def set_source[T](self, source: Source[T], value: T) -> None:
         cell = self.source_data.get(source)
         if cell is None:
-            self.source_data[source] = source.cell(self, value)
+            cell = source.cell(self)
+            cell.value = value
+            self.source_data[source] = cell
             return
 
         old = cell.value
@@ -66,7 +70,8 @@ class DataBase:
         query_cell = self.query_data.get(query)
 
         if query_cell is None:
-            query_cell = query.cell(self, self.run(query))
+            query_cell = query.cell(self)
+            query_cell.value = self.run(query)
             self.query_data[query] = query_cell
         elif not query_cell.is_up_to_date():
             query_cell.reset_deps()
