@@ -45,8 +45,7 @@ class DataBase:
         cell = self.source_data.get(source)
 
         if cell is None:
-            cell = source.cell(self)
-            cell.value = source.get_initial_value()
+            cell = source.cell(self, source.get_initial_value())
             self.source_data[source] = cell
 
         self.record_dependencies(cell, comparator)
@@ -56,8 +55,7 @@ class DataBase:
     def set_source[T](self, source: Source[T], value: T) -> None:
         cell = self.source_data.get(source)
         if cell is None:
-            cell = source.cell(self)
-            cell.value = value
+            cell = source.cell(self, value)
             self.source_data[source] = cell
             return
 

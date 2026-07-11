@@ -17,20 +17,14 @@ Goal: `source.set(db, x)`, `query.get(db)` works, recomputes when `x` changes, d
 
 ### Unblock
 
-- [ ] `Query` and `Source` don't override the abstract `Node.get` / `Node.remove` — both raise
-      `TypeError` on instantiation. Fixed implicitly by the tasks below; listed so it's not mistaken
-      for a runtime bug later.
 - [ ] Circular import: `rich_queries` imports `inspect_call_id_fn` eagerly, `call_id_fns` imports
       `RichQueryFn` eagerly. Both orders fail. `RichQueryFn` is only used in lazy `type` aliases →
       move it under `TYPE_CHECKING`.
-- [ ] Settle the test dir name. `[tool.ruff.lint.per-file-ignores]` currently ignores `S101` for
-      `test/*`, not `tests/*`.
+
 
 ### `Source`
 
-- [ ] `Source.get(db, default=MISSING)` — read `db.source_data`, fall back to
-      `get_initial_value()`, then to `default`, then raise. Records itself as a dependency of
-      `db.stack.peek()` when the stack is non-empty.
+
 - [ ] `Source.set` / `setdefault` / `remove` — write through `db.source_data`, bump `db.update()`,
       set `Cell.changed_at` to the new revision. `set` to an equal value: decide whether it bumps
       `changed_at` or is a no-op (this is where early-cutoff starts, and getting it wrong here makes
@@ -146,3 +140,8 @@ Lets a user avoid the "conditional `.get` means the dep is invisible until it's 
       v0.3 — declared deps change what's reachable.
 - [ ] Custom comparators past `comparator_eq`: the `Cell.comparators` dict is built for this but
       nothing constructs a non-default one yet.
+
+
+```python
+
+```

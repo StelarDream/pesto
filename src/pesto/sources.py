@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from operator import eq
 from typing import TYPE_CHECKING
 
 from .cells import Cell
@@ -6,6 +8,9 @@ from .sentinels import MISSING
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import overload
+
+    from .comparators import Comparator
+    from .data_bases import DataBase
 
 
 class Source[T]:
@@ -47,6 +52,20 @@ class Source[T]:
             return default
 
         return self.initial_value_factory()
+
+    # --- DataBase entries management ---
+
+    def get(self, db: DataBase, comparator: Comparator[T] = eq) -> T:
+        return db.get_source(self, comparator)
+
+    def set(self, db: DataBase, value: T) -> None:
+        return db.set_source(self, value)
+
+    def getter(self, comparator: Comparator[T]) -> Callable[[DataBase], T]:
+        def inner(db: DataBase) -> T:
+            return self.get(db, comparator)
+
+        return inner
 
     @property
     def cell(self) -> type[Cell[T]]:

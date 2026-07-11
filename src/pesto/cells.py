@@ -1,17 +1,20 @@
 from typing import TYPE_CHECKING, Any
 
 from .comparators import Comparator, ComparatorState
+from .sentinels import MISSING, MissingType
 
 if TYPE_CHECKING:
     from .data_bases import DataBase
 
 
 class Cell[T]:
-    value: T
     verified_at: int
     comparator_states: dict[Comparator[Any], ComparatorState]
 
-    def __init__(self, db: DataBase) -> None:
+    _cache: T | MissingType
+
+    def __init__(self, db: DataBase, value: T | MissingType = MISSING) -> None:
+        self._cache = value
         self.verified_at = db.now()
         self.comparator_states = {}
 
@@ -44,6 +47,17 @@ class Cell[T]:
 
     def is_up_to_date(self) -> bool:
         return True
+
+    @property
+    def value(self) -> T:
+        if self._cache is MISSING:
+            msg = f"{type(self).__name__} has no value assigned yet"
+            raise AttributeError(msg)
+        return self._cache
+
+    @value.setter
+    def value(self, value: T) -> None:
+        self._cache = value
 
 
 class QueryCell[T](Cell[T]):
