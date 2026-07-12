@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Any
+from weakref import WeakKeyDictionary
 
 from .comparators import Comparator, ComparatorState
 from .sentinels import MISSING, MissingType
@@ -61,18 +62,18 @@ class Cell[T]:
 
 
 class QueryCell[T](Cell[T]):
-    dependencies: dict[Cell[Any], Comparator[Any]]
+    dependencies: WeakKeyDictionary[Cell[Any], Comparator[Any]]
 
     def __init__(self, db: DataBase) -> None:
         super().__init__(db)
-        self.dependencies = {}
+        self.dependencies = WeakKeyDictionary()
 
     def add_dep[V](self, depends_on: Cell[V], comparator: Comparator[V]) -> None:
         self.dependencies[depends_on] = comparator
         depends_on.add_ref(self, comparator)
 
     def reset_deps(self) -> None:
-        for depends_on, comparator in self.dependencies.items():
+        for depends_on, comparator in tuple(self.dependencies.items()):
             depends_on.drop_ref(self, comparator)
 
         self.dependencies.clear()

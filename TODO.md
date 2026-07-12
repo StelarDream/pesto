@@ -13,41 +13,6 @@ refactor — a passing suite is the only signal that early-cutoff still cuts off
 
 ## v0.1 — Execution engine
 
-Goal: `source.set(db, x)`, `query.get(db)` works, recomputes when `x` changes, doesn't when it doesn't.
-
-### Unblock
-
-- [ ] Circular import: `rich_queries` imports `inspect_call_id_fn` eagerly, `call_id_fns` imports
-      `RichQueryFn` eagerly. Both orders fail. `RichQueryFn` is only used in lazy `type` aliases →
-      move it under `TYPE_CHECKING`.
-
-
-### `Source`
-
-
-- [ ] `Source.set` / `setdefault` / `remove` — write through `db.source_data`, bump `db.update()`,
-      set `Cell.changed_at` to the new revision. `set` to an equal value: decide whether it bumps
-      `changed_at` or is a no-op (this is where early-cutoff starts, and getting it wrong here makes
-      every downstream cutoff test lie).
-- [ ] Rename `DataBase.input_data` → `source_data`, and `db.get_input` → `db.get_source`.
-      `Source` is the README's word; `input` shadows the builtin. Do it before there are callers.
-
-### `Query`
-
-- [ ] `Query.get(db, default=MISSING)` — the dependency-tracking loop:
-      push onto `db.stack`, run `fn(db)`, pop in a `finally`. Every `.get()` during the run appends
-      to the running query's `QueryCell.dependencies`.
-- [ ] `Query.remove` — evict the `QueryCell`. Decide whether dependents are evicted too or just
-      left to re-verify.
-- [ ] Invalidation / recompute (Salsa `maybe_changed_after`): walk `QueryCell.dependencies`,
-      compare `Cell.changed_at` against `ComparatorState.verified_at` to pick
-      *fresh* / *verify-then-cutoff* / *recompute*. Pull-based, so no dependents index is required —
-      `ComparatorState.references` is currently the only reverse edge; either justify it or drop it.
-- [ ] `QueryCell.dependencies` is a `WeakSet`. A `Source` that only the dep set references will be
-      collected mid-flight and silently disappear from the graph. Decide: strong refs for deps, or
-      explicit "dep died → recompute" semantics. Not optional; it's a correctness hole.
-- [ ] Populate `__init__.py`. It's empty — there is no public API surface.
-
 ### Tests (first suite)
 
 Written in this order; each layer catches a different class of bug.
