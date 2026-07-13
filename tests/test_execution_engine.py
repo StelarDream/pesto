@@ -1,6 +1,8 @@
 from typing import TYPE_CHECKING
 
-from pesto import DataBase, Query, Source
+import pytest
+
+from pesto import CircularDependencyError, DataBase, Query, Source
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -145,3 +147,236 @@ def test_conditional_dependency_set_changes_between_runs() -> None:
 
     assert q.get(db) == 200
     assert set(q.get_dependencies(db)) == {flag, off_branch}
+
+
+# -- Error semantics ---------------------------------------------------------
+
+
+def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
+    db = DataBase()
+
+    def boom(db: DataBase) -> int:
+        msg = "boom"
+        raise ValueError(msg)
+
+    q = Query(boom)
+
+    with pytest.raises(ValueError, match="boom"):
+        q.get(db)
+
+    assert q.resolve(db) is None
+    assert list(db.stack) == []
+
+
+def test_raise_mid_query_next_get_reruns_fn() -> None:
+    db = DataBase()
+    attempts = []
+
+    def flaky(db: DataBase) -> int:
+        attempts.append(len(attempts))
+        if len(attempts) == 1:
+            msg = "first attempt fails"
+            raise ValueError(msg)
+        return 42
+
+    q = Query(flaky)
+
+    with pytest.raises(ValueError, match="first attempt fails"):
+        q.get(db)
+
+    assert q.get(db) == 42
+    assert len(attempts) == 2
+
+
+def test_raise_mid_nested_query_unwinds_whole_chain() -> None:
+    db = DataBase()
+
+    def inner_fn(db: DataBase) -> int:
+        msg = "inner boom"
+        raise ValueError(msg)
+
+    inner = Query(inner_fn)
+
+    def outer_fn(db: DataBase) -> int:
+        return inner.get(db) + 1
+
+    outer = Query(outer_fn)
+
+    with pytest.raises(ValueError, match="inner boom"):
+        outer.get(db)
+
+    assert inner.resolve(db) is None
+    assert outer.resolve(db) is None
+    assert list(db.stack) == []
+
+
+def test_raise_mid_nested_query_next_get_reruns_whole_chain() -> None:
+    db = DataBase()
+    inner_calls: list[int] = []
+    outer_calls: list[int] = []
+
+    def inner_fn(db: DataBase) -> int:
+        inner_calls.append(len(inner_calls))
+        if len(inner_calls) == 1:
+            msg = "inner boom"
+            raise ValueError(msg)
+        return 10
+
+    inner = Query(inner_fn)
+
+    def outer_fn(db: DataBase) -> int:
+        outer_calls.append(len(outer_calls))
+        return inner.get(db) + 1
+
+    outer = Query(outer_fn)
+
+    with pytest.raises(ValueError, match="inner boom"):
+        outer.get(db)
+
+    assert outer.get(db) == 11
+    assert len(inner_calls) == 2
+    assert len(outer_calls) == 2
+
+
+def test_raise_does_not_corrupt_sibling_dependency_state() -> None:
+    # A cache entry that exists before a failed recompute must survive untouched.
+    db = DataBase()
+    s = Source(lambda: 1)
+
+    def fn(db: DataBase) -> int:
+        return s.get(db) * 2
+
+    q = Query(fn)
+    assert q.get(db) == 2
+
+    def other_fn(db: DataBase) -> int:
+        msg = "boom"
+        raise ValueError(msg)
+
+    other = Query(other_fn)
+    with pytest.raises(ValueError, match="boom"):
+        other.get(db)
+
+    # unrelated, previously-cached query is unaffected
+    assert q.get(db) == 2
+    assert list(db.stack) == []
+
+
+# -- Cycle detection ----------------------------------------------------------
+
+
+def test_self_cycle_raises_circular_dependency_error() -> None:
+    db = DataBase()
+
+    def self_cycle(db: DataBase) -> int:
+        return q.get(db)
+
+    q = Query(self_cycle)
+
+    with pytest.raises(CircularDependencyError) as exc_info:
+        q.get(db)
+
+    assert exc_info.value.query is q
+    assert exc_info.value.chain == [q, q]
+    assert list(db.stack) == []
+
+
+def test_two_query_cycle_raises_circular_dependency_error() -> None:
+    db = DataBase()
+
+    def a_fn(db: DataBase) -> int:
+        return b.get(db)
+
+    a = Query(a_fn)
+
+    def b_fn(db: DataBase) -> int:
+        return a.get(db)
+
+    b = Query(b_fn)
+
+    with pytest.raises(CircularDependencyError) as exc_info:
+        a.get(db)
+
+    assert exc_info.value.chain == [a, b, a]
+    assert list(db.stack) == []
+
+
+def test_long_cycle_raises_circular_dependency_error() -> None:
+    db = DataBase()
+    queries: list[Query[int]] = []
+
+    def make_fn(i: int) -> Callable[[DataBase], int]:
+        def fn(db: DataBase) -> int:
+            return queries[(i + 1) % len(queries)].get(db)
+
+        return fn
+
+    queries.extend(Query(make_fn(i)) for i in range(5))
+
+    with pytest.raises(CircularDependencyError) as exc_info:
+        queries[0].get(db)
+
+    assert exc_info.value.chain == [*queries, queries[0]]
+    assert list(db.stack) == []
+
+
+def test_cycle_error_not_recursion_error() -> None:
+    db = DataBase()
+
+    def self_cycle(db: DataBase) -> int:
+        return q.get(db)
+
+    q = Query(self_cycle)
+
+    with pytest.raises(CircularDependencyError):
+        q.get(db)
+
+
+def test_db_still_usable_after_cycle_error() -> None:
+    db = DataBase()
+
+    def self_cycle(db: DataBase) -> int:
+        return q.get(db)
+
+    q = Query(self_cycle)
+
+    with pytest.raises(CircularDependencyError):
+        q.get(db)
+
+    s = Source(lambda: 9)
+    assert s.get(db) == 9
+
+    def ok_fn(db: DataBase) -> int:
+        return s.get(db) + 1
+
+    ok = Query(ok_fn)
+    assert ok.get(db) == 10
+
+
+def test_cycle_detected_partway_through_chain_leaves_earlier_cells_uncached() -> None:
+    # a -> b -> c -> b (cycle starts at b, not at the root a)
+    db = DataBase()
+
+    def a_fn(db: DataBase) -> int:
+        return b.get(db)
+
+    a = Query(a_fn)
+
+    def b_fn(db: DataBase) -> int:
+        return c.get(db)
+
+    b = Query(b_fn)
+
+    def c_fn(db: DataBase) -> int:
+        return b.get(db)
+
+    c = Query(c_fn)
+
+    with pytest.raises(CircularDependencyError) as exc_info:
+        a.get(db)
+
+    assert exc_info.value.chain == [a, b, c, b]
+    assert a.resolve(db) is None
+    assert b.resolve(db) is None
+    assert c.resolve(db) is None
+    assert list(db.stack) == []

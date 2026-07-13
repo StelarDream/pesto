@@ -11,39 +11,13 @@ refactor — a passing suite is the only signal that early-cutoff still cuts off
 
 ---
 
-## v0.1 — Execution engine
+## v0.2 — Rich queries and decorators
 
-### Tests (first suite)
+Introduce decorator for queries, and create a per argument query dispatcher
+to allow queries with external args to also exist inside the system, instead of the user having to write partials or other means of archiving this result
 
-Written in this order; each layer catches a different class of bug.
-
-- [ ] Get a source, get a query over it. Baseline.
-- [ ] Cache hit: same query twice, no revision bump → `fn` called once. Use a call counter.
-- [ ] Cache miss: `source.set` → `fn` called again.
-- [ ] Early cutoff: `source.set` to a value that leaves the query's *output* unchanged → direct
-      dependents recompute, transitive dependents do not.
-- [ ] Dependency-graph introspection: assert on the actual recorded dep set after a run, not just on
-      call counts. Needs a public read path (`db.dependencies_of(query)` or similar) — design it now,
-      it's the API a user will want for debugging anyway.
-- [ ] Diamond graph (`A → B, C → D`) and a query whose dep set changes between runs (conditional
-      `.get`). The second one is where most naive implementations break.
-
----
-
-## v0.2 — Correctness
-
-- [ ] **Error semantics.** A query fn raises: what happens to its `QueryCell`, and to the stack?
-      Decide and document: no cache entry written, stack unwound (already handled if the pop is in
-      `finally`), exception propagates unmemoized. Dependents on the next `get` must re-run rather
-      than see a half-written cell.
-  - [ ] Tests: raise mid-query, assert no cell written, assert `db.stack` is empty, assert the next
-        `get` re-runs. Raise mid-*nested*-query, assert the whole chain unwinds.
-- [ ] **Cycle detection.** `ContextStack` is a linked list — membership is O(depth) per `get`, on
-      the hottest path there is. Add a `set`/`Counter` alongside the frames; raise a dedicated
-      `CycleError` carrying the participating queries, before recursion blows the Python stack.
-  - [ ] Tests: self-cycle, two-query cycle, long cycle. Assert `CycleError` (not `RecursionError`),
-        assert the error names the cycle, assert `db.stack` is clean afterward and the db is still
-        usable.
+- [ ] (Re-)Introduce RichQuery
+- [ ] @query decorator and optional @query.
 
 ---
 

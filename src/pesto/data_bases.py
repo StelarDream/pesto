@@ -15,6 +15,13 @@ if TYPE_CHECKING:
 type Node[T] = Query[T] | Source[T]
 
 
+class CircularDependencyError(Exception):
+    def __init__(self, query: Query[Any], chain: list[Query[Any]]) -> None:
+        self.query = query
+        self.chain = chain
+        super().__init__(f"Circular dependency detected: {query} depends on itself via {chain}")
+
+
 class DataBase:
     source_data: WeakKeyDictionary[Source[Any], SourceCell[Any]]
     query_data: WeakKeyDictionary[Query[Any], QueryCell[Any]]
@@ -84,8 +91,8 @@ class DataBase:
     def get_query[T](self, query: Query[T], comparator: Comparator[T] = eq) -> T:
         active = [frame.query for frame in self.stack]
         if query in active:
-            msg = f"Circular dependency detected for query: {query}"
-            raise RuntimeError(msg)
+            chain = [*reversed(active), query]
+            raise CircularDependencyError(query, chain)
 
         cell = query.ensure_cell(self)
         self.add_dependency(query, comparator)
