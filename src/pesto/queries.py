@@ -2,11 +2,9 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING, Any
 
-from .cells import QueryCell
-from .data_bases import DataBase, Node
-
 if TYPE_CHECKING:
     from .comparators import Comparator
+    from .data_bases import DataBase, Node
 
 type QueryFn[T] = Callable[[DataBase], T]
 
@@ -37,7 +35,3 @@ class Query[T]:
 
     def get_dependencies(self, db: DataBase) -> list[Node[Any]]:
         return db.dependencies_of(self)
-
-    @property
-    def cell(self) -> type[QueryCell[T]]:
-        return QueryCell

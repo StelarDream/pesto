@@ -2,21 +2,27 @@ from typing import TYPE_CHECKING, Any
 from weakref import ReferenceType, WeakKeyDictionary
 
 from .comparators import Comparator, ComparatorState
+from .queries import Query
 from .sentinels import MISSING, MissingType
+from .sources import Source
 
 if TYPE_CHECKING:
     from .data_bases import DataBase, Node
-    from .queries import Query
 
 
-class Cell[T]:
+class Cell[T, V = Any]:
     verified_at: int
-    represents: ReferenceType[Node[T]]
+    represents: ReferenceType[V]
     comparator_states: dict[Comparator[Any], ComparatorState]
 
     _cache: T | MissingType
 
-    def __init__(self, db: DataBase, represents: Node[T], value: T | MissingType = MISSING) -> None:
+    def __init__(
+        self,
+        db: DataBase,
+        represents: V,
+        value: T | MissingType = MISSING,
+    ) -> None:
         self._cache = value
         self.represents = ReferenceType(represents)
         self.verified_at = db.now()
@@ -49,9 +55,6 @@ class Cell[T]:
 
         self.verified_at = revision
 
-    def is_up_to_date(self) -> bool:
-        return True
-
     @property
     def value(self) -> T:
         if self._cache is MISSING:
@@ -64,14 +67,21 @@ class Cell[T]:
         self._cache = value
 
 
-class QueryCell[T](Cell[T]):
-    dependencies: WeakKeyDictionary[Cell[Any], Comparator[Any]]
+class SourceCell[T](Cell[T, Source[T]]): ...
+
+
+class QueryCell[T](Cell[T, Query[T]]):
+    dependencies: WeakKeyDictionary[Cell[Any, Node[Any]], Comparator[Any]]
 
     def __init__(self, db: DataBase, represents: Query[T]) -> None:
         super().__init__(db, represents)
         self.dependencies = WeakKeyDictionary()
 
-    def add_dep[V](self, depends_on: Cell[V], comparator: Comparator[V]) -> None:
+    def add_dep[V](
+        self,
+        depends_on: Cell[V, Node[V]],
+        comparator: Comparator[V],
+    ) -> None:
         self.dependencies[depends_on] = comparator
         depends_on.add_ref(self, comparator)
 
@@ -80,11 +90,3 @@ class QueryCell[T](Cell[T]):
             depends_on.drop_ref(self, comparator)
 
         self.dependencies.clear()
-
-    def is_up_to_date(self) -> bool:
-
-        return all(
-            depends_on.is_up_to_date()
-            and depends_on.comparator_states[comparator].changed_at <= self.verified_at
-            for depends_on, comparator in self.dependencies.items()
-        )

@@ -2,7 +2,6 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING
 
-from .cells import Cell
 from .sentinels import MISSING
 
 if TYPE_CHECKING:
@@ -66,7 +65,3 @@ class Source[T]:
             return self.get(db, comparator)
 
         return inner
-
-    @property
-    def cell(self) -> type[Cell[T]]:
-        return Cell
