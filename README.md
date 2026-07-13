@@ -4,7 +4,7 @@ Pesto is an Incremental Computation (IC) framework for Python, in the spirit of 
 
 > Rust is red, Python is blue and yellow which makes green. Salsa is red so Pesto is green.
 
-**Status: very early development.** No release yet, no stable API. The core execution engine (dependency tracking, invalidation, recompute) is still being built, see [TODO.md](TODO.md) for what's in progress and what's missing.
+**Status: very early development.** currently working on v0.2, see [TODO.md](TODO.md)
 
 ## What is Incremental Computation?
 

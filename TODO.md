@@ -1,23 +1,41 @@
 # TODO
 
-**Status:** pre-`v0.1`. The core data structures exist (`Cell`, `QueryCell`, `ContextStack`,
-`ComparatorState`, `QueryDef`); the execution engine does not. `Node.get` / `Node.remove` are
-abstract and unimplemented in both subclasses, so `Query` and `Source` cannot currently be
-instantiated. Nothing runs end-to-end.
-
-**Testing policy (from v0.1 onward):** no feature merges without tests in the same commit. The
-invalidation algorithm is the kind of thing that silently degrades into "recompute everything" under
-refactor — a passing suite is the only signal that early-cutoff still cuts off.
+**Status:** `v0.1` — core engine (`Query`, `QueryCell`, `Source`, `DataBase`) works: memoized
+queries, dependency tracking, cycle detection, and revision-based invalidation are all in place
+and tested. Every `Query` is still constructed by hand as `Query(fn)` with `fn: Callable[[DataBase], T]` —
+no decorator, no support for queries that take arguments beyond `db`.
 
 ---
 
 ## v0.2 — Rich queries and decorators
 
-Introduce decorator for queries, and create a per argument query dispatcher
-to allow queries with external args to also exist inside the system, instead of the user having to write partials or other means of archiving this result
+Query fns are currently locked to `(db) -> T`. Anything parameterized ("user by id") has no first-class representation: callers fall back to `functools.partial` or closures, and since each one is a distinct object, `db.query_data` can't recognize two calls with the same arguments as the same query — no cache hit, no shared invalidation. `RichQuery` needs to fix that: one `RichQuery` dispatching to a single memoized `Query` per distinct argument set, so `q(db, user_id=1)` always resolves to the same cell.
 
-- [ ] (Re-)Introduce RichQuery
-- [ ] @query decorator and optional @query.
+A prior version of this existed at `rich_queries.py` + `call_id_fns.py` (deleted at `0b5db4d` during the engine rework) 
+
+- [ ] `RichQuery[**P, T, K]`: `fn: RichQueryFn[P, T]` (`(db, *args, **kwargs) -> T`), a pluggable
+      `call_id_fn` mapping call args → cache key `K`, and a `K -> Query[T]` cache.
+- [ ] **Fix the cache's lifetime model.** The old `queries_cache` was a
+      `WeakValueDictionary[K, Query[T]]`, but nothing holds a strong ref to a freshly-made `Query`
+      — `DataBase.query_data` is *also* weak-keyed on the `Query` itself, and callers do
+      `qdef.get(db, x)` without keeping the object around. The only strong ref was local to
+      `get_query_or_make`, so entries could be collected before ever being reused — a no-op cache.
+      Use a plain `dict` (strong refs) and drive eviction from something real instead — tie it to
+      cell eviction (v0.3 / Backlog), not to refcount on the `Query` wrapper.
+- [ ] Default `call_id_fn`: `inspect_call_id_fn` — bind via `inspect.signature(fn).bind(...)`,
+      `apply_defaults()`, key on `(args, sorted(kwargs.items()))` so identity is independent of
+      positional-vs-keyword style and default-arg elision. Require hashable args; let that surface
+      as a plain `TypeError` from the dict lookup rather than adding bespoke validation.
+- [ ] `get_query_or_make(*args, **kwargs)`: look up by call id; on miss, build
+      `Query(fn=lambda db: self.fn(db, *args, **kwargs))` and cache it. For eviction: the old code
+      used `Query(del_fn=...)` to pop the cache entry on finalization — current `Query` has no
+      `del_fn` slot (dead per Backlog), so wire this through `weakref.finalize` instead.
+- [ ] `@query` — wraps `(db, *args, **kwargs) -> T` into a `QueryDef`.
+- [ ] `@query.plain` — keeps the existing `(db) -> T` shape, skips the dispatcher entirely (one
+      `Query`, no args to key on).
+- [ ] **Tests to write:** equal args (incl. default-arg / positional-vs-kwarg equivalence) resolve
+      to the same cell and share invalidation; different args → independent cells; unhashable args
+      raise; a `Query` evicted from `queries_cache` after going out of scope leaves no dangling entry.
 
 ---
 
@@ -66,21 +84,3 @@ Lets a user avoid the "conditional `.get` means the dep is invisible until it's 
       `asyncio.TaskGroup` and `ThreadPoolExecutor`, since `ContextVar` copies differ between them.
 - [ ] Tests: concurrent `get` of the same cold query computes `fn` exactly once; concurrent
       `set` + `get` doesn't produce a cell with a `changed_at` from the future.
-
----
-
-## Backlog
-
-- [ ] `Query.__slots__` declares `del_fn`, but it's never assigned — `weakref.finalize` is used
-      instead. Dead slot.
-- [ ] `QueryDef.__wrapped__` is annotated `QueryFn[T]` but returns a `RichQueryFn[P, T]`.
-- [ ] `pyproject.toml` still has `description = "Add your description here"`.
-- [ ] Eviction / GC strategy beyond what weakrefs give for free (LRU? revision-based?). Blocked on
-      v0.3 — declared deps change what's reachable.
-- [ ] Custom comparators past `comparator_eq`: the `Cell.comparators` dict is built for this but
-      nothing constructs a non-default one yet.
-
-
-```python
-
-```
