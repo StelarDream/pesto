@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from .queries import Query
 
 
-class StackFrame[T]:
+class QueryFrame[T]:
     query: Query[T]
     dependencies: dict[Node[Any], Comparator[Any]]
 
@@ -52,7 +52,7 @@ class StackFrame[T]:
             return self.dependencies.copy()
 
     def __repr__(self) -> str:
-        return f"<StackFrame query={self.query} dependencies_count={len(self.dependencies)}>"
+        return f"<QueryFrame query={self.query} dependencies_count={len(self.dependencies)}>"
 
     def __getstate__(self) -> tuple[Query[T], list[tuple[Node[Any], Comparator[Any]]]]:
         with self._lock:

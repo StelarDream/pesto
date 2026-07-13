@@ -6,9 +6,9 @@ from .comparators import ComparatorState
 
 if TYPE_CHECKING:
     from .comparators import Comparator
+    from .data_bases import Node
     from .queries import Query
     from .sources import Source
-    from .stack_frame import Node
 
 
 class Cell[T](ABC):

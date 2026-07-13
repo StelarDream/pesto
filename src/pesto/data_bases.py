@@ -10,7 +10,7 @@ from .stacks import ContextStack
 if TYPE_CHECKING:
     from .comparators import Comparator
     from .queries import Query
-    from .stack_frame import StackFrame
+    from .query_frame import QueryFrame
 
 type Node[T] = Query[T] | Source[T]
 
@@ -19,7 +19,7 @@ class DataBase:
     source_data: WeakKeyDictionary[Source[Any], SourceCell[Any]]
     query_data: WeakKeyDictionary[Query[Any], QueryCell[Any]]
     revision: ContextVar[int]
-    stack: ContextStack[StackFrame[Any]]
+    stack: ContextStack[QueryFrame[Any]]
 
     def __init__(self) -> None:
         self.source_data = WeakKeyDictionary()
