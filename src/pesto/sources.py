@@ -1,12 +1,11 @@
 from collections.abc import Callable
 from operator import eq
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from .sentinels import MISSING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import overload
 
     from .comparators import Comparator
     from .data_bases import DataBase
@@ -35,12 +34,10 @@ class Source[T]:
         """Set a fixed initial value, avoid giving a mutable"""
         self.initial_value_factory = lambda: initial_value
 
-    if TYPE_CHECKING:
-        # Overloads for type checkers (can be collapsed)
-        @overload
-        def get_initial_value(self) -> T: ...
-        @overload
-        def get_initial_value[D](self, default: D) -> T | D: ...
+    @overload
+    def get_initial_value(self) -> T: ...
+    @overload
+    def get_initial_value[D](self, default: D) -> T | D: ...
 
     def get_initial_value[D](self, default: D = MISSING) -> T | D:
         """Return a fresh initial value value, or `default` if none is set (and raises if no default is given)."""
@@ -60,8 +57,13 @@ class Source[T]:
     def set(self, db: DataBase, value: T) -> None:
         return db.set_source(self, value)
 
-    def getter(self, comparator: Comparator[T]) -> Callable[[DataBase], T]:
-        def inner(db: DataBase) -> T:
-            return self.get(db, comparator)
+    # --- Convenience methods ---
 
-        return inner
+    def __repr__(self) -> str:
+        return f"<Source {self.__class__.__name__}>"
+
+    def __getstate__(self) -> Callable[[], T] | None:
+        return self.initial_value_factory
+
+    def __setstate__(self, state: Callable[[], T] | None) -> None:
+        self.initial_value_factory = state

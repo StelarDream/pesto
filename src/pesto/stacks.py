@@ -1,4 +1,8 @@
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class StackFrame[T]:
@@ -42,6 +46,20 @@ class StackFrame[T]:
 
         self.value = state[-1]
         self.parent = parent
+
+    def __iter__(self) -> Generator[T]:
+        frame: StackFrame[T] | None = self
+        while frame is not None:
+            yield frame.value
+            frame = frame.parent
+
+    def __contains__(self, item: T) -> bool:
+        frame = self
+        while frame is not None:
+            if frame.value == item:
+                return True
+            frame = frame.parent
+        return False
 
 
 class ContextStack[T]:
@@ -106,3 +124,16 @@ class ContextStack[T]:
             default=None,
         )
         self.context_stack.set(frame)
+
+    def __iter__(self) -> Generator[T]:
+        frame = self.context_stack.get()
+        if frame is None:
+            return
+        yield from frame
+
+    def __contains__(self, item: T) -> bool:
+        frame = self.context_stack.get()
+        if frame is None:
+            return False
+
+        return item in frame

@@ -1,92 +1,134 @@
+from abc import ABC
 from typing import TYPE_CHECKING, Any
 from weakref import ReferenceType, WeakKeyDictionary
 
-from .comparators import Comparator, ComparatorState
-from .queries import Query
-from .sentinels import MISSING, MissingType
-from .sources import Source
+from .comparators import ComparatorState
 
 if TYPE_CHECKING:
-    from .data_bases import DataBase, Node
+    from .comparators import Comparator
+    from .queries import Query
+    from .sources import Source
+    from .stack_frame import Node
 
 
-class Cell[T, V = Any]:
+class Cell[T](ABC):
+    value: T
     verified_at: int
-    represents: ReferenceType[V]
-    comparator_states: dict[Comparator[Any], ComparatorState]
+    comparators: WeakKeyDictionary[Comparator[T], ComparatorState]
 
-    _cache: T | MissingType
+    __slots__ = ("comparators", "value", "verified_at")
 
-    def __init__(
-        self,
-        db: DataBase,
-        represents: V,
-        value: T | MissingType = MISSING,
-    ) -> None:
-        self._cache = value
-        self.represents = ReferenceType(represents)
-        self.verified_at = db.now()
-        self.comparator_states = {}
+    def __init__(self, value: T, start: int) -> None:
+        self.value = value
+        self.verified_at = start
+        self.comparators = WeakKeyDictionary()
 
-    def add_ref(self, query_cell: QueryCell[Any], comparator: Comparator[T]) -> None:
-        state = self.comparator_states.setdefault(
+    def add_ref(self, query: Query[Any], comparator: Comparator[T]) -> None:
+        state = self.comparators.setdefault(
             comparator,
             ComparatorState(self.verified_at),
         )
-        state.references.add(query_cell)
+        state.references.add(query)
 
-    def drop_ref(self, query_cell: QueryCell[Any], comparator: Comparator[T]) -> None:
-        state = self.comparator_states.get(comparator)
-        if state is None:
-            return
+    def drop_ref(self, query: Query[Any], comparator: Comparator[T]) -> None:
+        state = self.comparators.get(comparator)
+        if state is not None:
+            state.references.discard(query)
 
-        state.references.discard(query_cell)
+    def update(self, value: T, now: int) -> None:
+        for comparator, state in tuple(self.comparators.items()):
+            if state.references_count == 0:
+                del self.comparators[comparator]
+            elif not comparator(self.value, value):
+                state.changed_at = now
 
-    def verify(self, old: T, new: T, revision: int) -> None:
-        self.comparator_states = {
-            comparator: state
-            for comparator, state in self.comparator_states.items()
-            if state.ref_count > 0
-        }
-
-        for comparator, state in self.comparator_states.items():
-            if not comparator(old, new):
-                state.changed_at = revision
-
-        self.verified_at = revision
-
-    @property
-    def value(self) -> T:
-        if self._cache is MISSING:
-            msg = f"{type(self).__name__} has no value assigned yet"
-            raise AttributeError(msg)
-        return self._cache
-
-    @value.setter
-    def value(self, value: T) -> None:
-        self._cache = value
+        self.value = value
+        self.verified_at = now
 
 
-class SourceCell[T](Cell[T, Source[T]]): ...
+class SourceCell[T](Cell[T]):
+    source: ReferenceType[Source[T]]
+
+    __slots__ = ("source",)
+
+    def __init__(self, source: Source[T], value: T, start: int) -> None:
+        super().__init__(value, start)
+        self.source = ReferenceType(source)
+
+    def __repr__(self) -> str:
+        return (
+            f"<SourceCell source={self.source()} value={self.value} "
+            f"verified_at={self.verified_at} comparators_count={len(self.comparators)}>"
+        )
+
+    def __getstate__(
+        self,
+    ) -> tuple[
+        ReferenceType[Source[T]],
+        T,
+        int,
+        list[tuple[Comparator[T], ComparatorState]],
+    ]:
+        return self.source, self.value, self.verified_at, list(self.comparators.items())
+
+    def __setstate__(
+        self,
+        state: tuple[
+            ReferenceType[Source[T]],
+            T,
+            int,
+            list[tuple[Comparator[T], ComparatorState]],
+        ],
+    ) -> None:
+        self.source, self.value, self.verified_at, comparators = state
+        self.comparators = WeakKeyDictionary(comparators)
 
 
-class QueryCell[T](Cell[T, Query[T]]):
-    dependencies: WeakKeyDictionary[Cell[Any, Node[Any]], Comparator[Any]]
+class QueryCell[T](Cell[T]):
+    query: ReferenceType[Query[T]]
+    dependencies: WeakKeyDictionary[Node[Any], Comparator[Any]]
 
-    def __init__(self, db: DataBase, represents: Query[T]) -> None:
-        super().__init__(db, represents)
+    __slots__ = ("dependencies", "query")
+
+    def __init__(self, query: Query[T], value: T, start: int) -> None:
+        super().__init__(value, start)
+        self.query = ReferenceType(query)
         self.dependencies = WeakKeyDictionary()
 
-    def add_dep[V](
+    def __repr__(self) -> str:
+        return (
+            f"<QueryCell query={self.query()} value={self.value} "
+            f"verified_at={self.verified_at} comparators_count={len(self.comparators)} "
+            f"dependencies_count={len(self.dependencies)}>"
+        )
+
+    def __getstate__(
         self,
-        depends_on: Cell[V, Node[V]],
-        comparator: Comparator[V],
+    ) -> tuple[
+        ReferenceType[Query[T]],
+        T,
+        int,
+        list[tuple[Comparator[T], ComparatorState]],
+        list[tuple[Node[Any], Comparator[Any]]],
+    ]:
+        return (
+            self.query,
+            self.value,
+            self.verified_at,
+            list(self.comparators.items()),
+            list(self.dependencies.items()),
+        )
+
+    def __setstate__(
+        self,
+        state: tuple[
+            ReferenceType[Query[T]],
+            T,
+            int,
+            list[tuple[Comparator[T], ComparatorState]],
+            list[tuple[Node[Any], Comparator[Any]]],
+        ],
     ) -> None:
-        self.dependencies[depends_on] = comparator
-        depends_on.add_ref(self, comparator)
-
-    def reset_deps(self) -> None:
-        for depends_on, comparator in tuple(self.dependencies.items()):
-            depends_on.drop_ref(self, comparator)
-
-        self.dependencies.clear()
+        self.query, self.value, self.verified_at, comparators, dependencies = state
+        self.comparators = WeakKeyDictionary(comparators)
+        self.dependencies = WeakKeyDictionary(dependencies)
