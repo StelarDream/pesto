@@ -14,7 +14,7 @@ type QueryFn[T] = Callable[[DataBase], T]
 class Query[T]:
     fn: QueryFn[T]
 
-    __slots__ = ("fn",)
+    __slots__ = ("__weakref__", "fn")
 
     def __init__(self, fn: QueryFn[T]) -> None:
         self.fn = fn
