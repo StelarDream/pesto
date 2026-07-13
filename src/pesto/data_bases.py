@@ -81,13 +81,15 @@ class DataBase:
 
         return dict(query_cell.dependencies)
 
-    def get_query[T](
-        self,
-        query: Query[T],
-        comparator: Comparator[T] = eq,
-    ) -> T:
-        raise NotImplementedError
-        # WIP, removed implementation after having reworked stack frames.
+    def get_query[T](self, query: Query[T], comparator: Comparator[T] = eq) -> T:
+        active = [frame.query for frame in self.stack]
+        if query in active:
+            msg = f"Circular dependency detected for query: {query}"
+            raise RuntimeError(msg)
+
+        cell = query.ensure_cell(self)
+        self.add_dependency(query, comparator)
+        return cell.value
 
     def recompute[T](self, query: Query[T]) -> QueryCell[T]:
         cell = self.query_data.get(query)
@@ -113,3 +115,19 @@ class DataBase:
 
         cell.add_dependencies(self, frame.get_dependencies())
         return cell
+
+    def is_green(self, cell: QueryCell[Any]) -> bool:
+        now = self.now()
+        if cell.verified_at == now:
+            return True
+
+        for node, comparator in cell.dependencies.items():
+            dep_cell = node.ensure_cell(self)  # recomputes if stale; no-op for sources
+
+            state = dep_cell.comparators.get(comparator)
+            changed_at = state.changed_at if state is not None else dep_cell.verified_at
+            if changed_at > cell.verified_at:
+                return False
+
+        cell.verified_at = now
+        return True

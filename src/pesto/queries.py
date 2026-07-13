@@ -37,7 +37,7 @@ class Query[T]:
 
     def ensure_cell(self, db: DataBase) -> QueryCell[T]:
         cell = db.query_data.get(self)
-        if cell is None:
+        if cell is None or not db.is_green(cell):
             cell = db.recompute(self)
         return cell
 
