@@ -4,13 +4,13 @@ from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
 from .cells import QueryCell, SourceCell
+from .query_frame import QueryFrame
 from .sources import Source
 from .stacks import ContextStack
 
 if TYPE_CHECKING:
     from .comparators import Comparator
     from .queries import Query
-    from .query_frame import QueryFrame
 
 type Node[T] = Query[T] | Source[T]
 
@@ -88,3 +88,28 @@ class DataBase:
     ) -> T:
         raise NotImplementedError
         # WIP, removed implementation after having reworked stack frames.
+
+    def recompute[T](self, query: Query[T]) -> QueryCell[T]:
+        cell = self.query_data.get(query)
+        if cell is not None:
+            cell.reset_dependencies(self)
+
+        frame = QueryFrame(query)
+        self.stack.push(frame)
+        try:
+            new = query.fn(self)
+        except BaseException:
+            self.query_data.pop(query, None)
+            raise
+        finally:
+            self.stack.pop()
+
+        now = self.now()
+        if cell is None:
+            cell = QueryCell(query, new, now)
+            self.query_data[query] = cell
+        else:
+            cell.update(new, now)
+
+        cell.add_dependencies(self, frame.get_dependencies())
+        return cell

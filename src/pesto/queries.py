@@ -2,10 +2,10 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING, Any
 
-from .cells import QueryCell
 from .data_bases import DataBase
 
 if TYPE_CHECKING:
+    from .cells import QueryCell
     from .comparators import Comparator
     from .sources import Source
 
@@ -38,8 +38,7 @@ class Query[T]:
     def ensure_cell(self, db: DataBase) -> QueryCell[T]:
         cell = db.query_data.get(self)
         if cell is None:
-            cell = QueryCell(self, self.fn(db), db.now())
-            db.query_data[self] = cell
+            cell = db.recompute(self)
         return cell
 
     @property
