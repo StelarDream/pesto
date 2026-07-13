@@ -1,21 +1,24 @@
 from typing import TYPE_CHECKING, Any
-from weakref import WeakKeyDictionary
+from weakref import ReferenceType, WeakKeyDictionary
 
 from .comparators import Comparator, ComparatorState
 from .sentinels import MISSING, MissingType
 
 if TYPE_CHECKING:
-    from .data_bases import DataBase
+    from .data_bases import DataBase, Node
+    from .queries import Query
 
 
 class Cell[T]:
     verified_at: int
+    represents: ReferenceType[Node[T]]
     comparator_states: dict[Comparator[Any], ComparatorState]
 
     _cache: T | MissingType
 
-    def __init__(self, db: DataBase, value: T | MissingType = MISSING) -> None:
+    def __init__(self, db: DataBase, represents: Node[T], value: T | MissingType = MISSING) -> None:
         self._cache = value
+        self.represents = ReferenceType(represents)
         self.verified_at = db.now()
         self.comparator_states = {}
 
@@ -64,8 +67,8 @@ class Cell[T]:
 class QueryCell[T](Cell[T]):
     dependencies: WeakKeyDictionary[Cell[Any], Comparator[Any]]
 
-    def __init__(self, db: DataBase) -> None:
-        super().__init__(db)
+    def __init__(self, db: DataBase, represents: Query[T]) -> None:
+        super().__init__(db, represents)
         self.dependencies = WeakKeyDictionary()
 
     def add_dep[V](self, depends_on: Cell[V], comparator: Comparator[V]) -> None:

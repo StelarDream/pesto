@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     from .queries import Query
     from .sources import Source
 
+type Node[T] = Source[T] | Query[T]
+
 
 class DataBase:
     source_data: WeakKeyDictionary[Source[Any], Cell[Any]]
@@ -45,7 +47,7 @@ class DataBase:
         cell = self.source_data.get(source)
 
         if cell is None:
-            cell = source.cell(self, source.get_initial_value())
+            cell = source.cell(self, source, source.get_initial_value())
             self.source_data[source] = cell
 
         self.record_dependencies(cell, comparator)
@@ -55,7 +57,7 @@ class DataBase:
     def set_source[T](self, source: Source[T], value: T) -> None:
         cell = self.source_data.get(source)
         if cell is None:
-            cell = source.cell(self, value)
+            cell = source.cell(self, source, value)
             self.source_data[source] = cell
             return
 
@@ -68,7 +70,7 @@ class DataBase:
         query_cell = self.query_data.get(query)
 
         if query_cell is None:
-            query_cell = query.cell(self)
+            query_cell = query.cell(self, query)
             self.query_data[query] = query_cell
             query_cell.value = self.run(query)
         elif not query_cell.is_up_to_date():
@@ -90,3 +92,11 @@ class DataBase:
             raise
         finally:
             self.stack.pop()
+
+    def dependencies_of(self, query: Query[Any]) -> list[Node[Any]]:
+        query_cell = self.query_data.get(query)
+        if query_cell is None:
+            return []
+
+        nodes = (dep.represents() for dep in tuple(query_cell.dependencies))
+        return [node for node in nodes if node is not None]

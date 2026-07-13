@@ -1,9 +1,9 @@
 from collections.abc import Callable
 from operator import eq
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .cells import QueryCell
-from .data_bases import DataBase
+from .data_bases import DataBase, Node
 
 if TYPE_CHECKING:
     from .comparators import Comparator
@@ -34,6 +34,9 @@ class Query[T]:
             return self.get(db, comparator)
 
         return inner
+
+    def get_dependencies(self, db: DataBase) -> list[Node[Any]]:
+        return db.dependencies_of(self)
 
     @property
     def cell(self) -> type[QueryCell[T]]:
