@@ -1,30 +1,56 @@
-# Pesto
+Pesto is an Incremental Computation (IC) framework for Python, in the spirit of
+[Salsa](https://github.com/salsa-rs/salsa) — it memoizes pure functions ("queries") over
+mutable source state and recomputes only what an edit actually touches.
 
-Pesto is an Incremental Computation (IC) framework for Python, in the spirit of [Salsa](https://github.com/salsa-rs/salsa), with extras.
+> Rust is red, Python is blue and yellow which makes green. Salsa is red, so Pesto is green.
 
-> Rust is red, Python is blue and yellow which makes green. Salsa is red so Pesto is green.
+**This is the first tagged release and it's an early alpha.** The core engine works and is
+tested, but the ergonomic surface (decorators, parameterized queries) isn't here yet — see
+the roadmap below.
 
-**Status: very early development.** currently working on v0.2, see [TODO.md](TODO.md)
+## What works in this release
 
-## What is Incremental Computation?
+- **Memoized queries** — a `Query` runs its function once and caches the result; repeat
+  `get`s on the same revision return the cached value without re-running.
+- **Automatic dependency tracking** — dependencies are captured as a query runs (via a
+  `ContextVar`-backed call stack), so you never declare them by hand.
+- **Revision-based invalidation** — setting a `Source` bumps a revision counter; dependent
+  queries recompute lazily on next access instead of eagerly on write.
+- **Early cutoff** — when a recomputed dependency produces an unchanged value (per its
+  comparator), transitive recomputation stops there. Pluggable per-`get` comparators
+  (`eq` by default) let you decide what "unchanged" means.
+- **Cycle detection** — a query depending on itself, directly or transitively, raises
+  `CircularDependencyError` (not a `RecursionError`), and the database stays usable afterward.
+- **Clean failure semantics** — if a query raises mid-run, no partial cell is written, the
+  call stack unwinds cleanly, sibling cache entries are untouched, and the next `get` re-runs.
 
-An IC framework memoizes the results of pure functions ("queries") over some mutable source state, and recomputes only what's actually affected when that source state changes — skipping unaffected work and cutting off recomputation early when a query's output turns out unchanged even though its sources changed.
+## Public API
 
-## Motivation
+```python
+from pesto import DataBase, Query, Source, Comparator, CircularDependencyError
+```
 
-Pesto's eventual target use case is powering a type checker with LSP (Language Server Protocol) capabilities: the kind of tool that needs to re-analyze a codebase after every keystroke, fast, by only recomputing what the edit actually touched.
+- `Source[T]` — a named leaf slot with an optional initial-value factory.
+- `Query[T]` — wraps a `fn: (DataBase) -> T`. Constructed by hand as `Query(fn)` for now.
+- `DataBase` — owns the revision counter and the storage for sources and query results.
 
-## Core concepts (so far)
+## Requirements
 
-- **`Source`** — a named leaf slot a `DataBase` holds a value for, with an optional default. (Called `Source`, not `Input`, since `input` shadows a Python builtin.)
-- **`Query`** — a memoized, pure computation over a `DataBase`, with dependencies tracked automatically as it runs.
-- **`DataBase`** — owns the current revision counter and the storage for sources and query results.
-- **`Cell`** / **`QueryCell`** — the versioned storage backing sources and queries, tracking `changed_at` / `verified_at` for early-cutoff.
+- **Python 3.14+** (the codebase uses PEP 695 type-parameter syntax throughout).
+- No runtime dependencies.
 
-## Development
+## Install (from source)
 
 ```bash
+git clone https://github.com/StelarDream/pesto
+cd pesto
 uv sync
 ```
 
-Type checking and linting are configured via `pyright` (strict mode) and `ruff` in [pyproject.toml](pyproject.toml).
+## Not in this release (see [TODO.md](TODO.md))
+
+- **v0.2** — `@query` decorator and `RichQuery` for parameterized queries (`user_by_id(db, 1)`).
+- **v0.3** — declared dependencies (`db.depends(...)`).
+- **v0.4** — serialization of a populated database.
+- **v0.5** — concurrency (the engine is single-threaded today; `ContextVar` usage anticipates
+  it but nothing is synchronized yet).
