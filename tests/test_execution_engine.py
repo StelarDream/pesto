@@ -170,7 +170,7 @@ def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
 
 def test_raise_mid_query_next_get_reruns_fn() -> None:
     db = DataBase()
-    attempts = []
+    attempts: list[int] = []
 
     def flaky(db: DataBase) -> int:
         attempts.append(len(attempts))
