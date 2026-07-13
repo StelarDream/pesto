@@ -2,6 +2,7 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING, overload
 
+from .cells import SourceCell
 from .sentinels import MISSING
 
 if TYPE_CHECKING:
@@ -56,6 +57,16 @@ class Source[T]:
 
     def set(self, db: DataBase, value: T) -> None:
         return db.set_source(self, value)
+
+    def resolve(self, db: DataBase) -> SourceCell[T] | None:
+        return db.source_data.get(self)
+
+    def ensure_cell(self, db: DataBase) -> SourceCell[T]:
+        cell = db.source_data.get(self)
+        if cell is None:
+            cell = SourceCell(self, self.get_initial_value(), db.now())
+            db.source_data[self] = cell
+        return cell
 
     # --- Convenience methods ---
 

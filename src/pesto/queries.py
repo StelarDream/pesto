@@ -2,6 +2,7 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING, Any
 
+from .cells import QueryCell
 from .data_bases import DataBase
 
 if TYPE_CHECKING:
@@ -30,6 +31,16 @@ class Query[T]:
         db: DataBase,
     ) -> dict[Query[Any] | Source[Any], Comparator[Any]]:
         return db.dependencies_of(self)
+
+    def resolve(self, db: DataBase) -> QueryCell[T] | None:
+        return db.query_data.get(self)
+
+    def ensure_cell(self, db: DataBase) -> QueryCell[T]:
+        cell = db.query_data.get(self)
+        if cell is None:
+            cell = QueryCell(self, self.fn(db), db.now())
+            db.query_data[self] = cell
+        return cell
 
     @property
     def __wrapped__(self) -> QueryFn[T]:

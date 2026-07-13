@@ -35,20 +35,23 @@ class DataBase:
         self.revision.set(new)
         return new
 
+    def add_dependency[T](
+        self,
+        node: Node[T],
+        comparator: Comparator[T],
+    ) -> None:
+        frame = self.stack.peek()
+        if frame is not None:
+            frame.add_dependency(node, comparator)
+
     def get_source[T](
         self,
         source: Source[T],
         comparator: Comparator[T] = eq,
     ) -> T:
-        cell = self.source_data.get(source)
-        if cell is None:
-            cell = SourceCell(source, source.get_initial_value(), self.now())
-            self.source_data[source] = cell
+        cell = source.ensure_cell(self)
 
-        frame = self.stack.peek()
-        if frame is not None:
-            cell.add_ref(frame.query, comparator)
-            frame.add_dependency(source, comparator)
+        self.add_dependency(source, comparator)
 
         return cell.value
 

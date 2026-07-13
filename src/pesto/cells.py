@@ -6,7 +6,7 @@ from .comparators import ComparatorState
 
 if TYPE_CHECKING:
     from .comparators import Comparator
-    from .data_bases import Node
+    from .data_bases import DataBase, Node
     from .queries import Query
     from .sources import Source
 
@@ -94,6 +94,28 @@ class QueryCell[T](Cell[T]):
         super().__init__(value, start)
         self.query = ReferenceType(query)
         self.dependencies = WeakKeyDictionary()
+
+    def add_dependencies(
+        self,
+        db: DataBase,
+        dependencies: dict[Node[Any], Comparator[Any]],
+    ) -> None:
+        query = self.query()
+        if query is None:
+            msg = "QueryCell has no query reference"
+            raise ReferenceError(msg)
+        for node, comparator in dependencies.items():
+            self.dependencies[node] = comparator
+            node.ensure_cell(db).add_ref(query, comparator)
+
+    def reset_dependencies(self, db: DataBase) -> None:
+        query = self.query()
+        if query is None:
+            msg = "QueryCell has no query reference"
+            raise ReferenceError(msg)
+        for node, comparator in self.dependencies.items():
+            node.ensure_cell(db).drop_ref(query, comparator)
+        self.dependencies.clear()
 
     def __repr__(self) -> str:
         return (
