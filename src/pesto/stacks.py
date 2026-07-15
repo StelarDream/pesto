@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from contextvars import ContextVar
 from itertools import islice
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -56,21 +56,9 @@ class ContextStack[**P, T]:
     context_frame: ContextVar[StackFrame[T] | None]
     fn: Callable[P, T]
 
-    @overload
-    def __init__(self, fn: Callable[P, T]) -> None: ...
-    @overload
-    def __init__(
-        self,
-        fn: Callable[P, T],
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> None: ...
-
-    def __init__(self, fn: Callable[..., T], *args: Any, **kwargs: Any) -> None:
+    def __init__(self, fn: Callable[..., T]) -> None:
         self.fn = fn
         self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
-        if args or kwargs:
-            self.context_frame.set(StackFrame(fn(*args, **kwargs)))
 
     def peek(self) -> T:
         frame = self.context_frame.get()
