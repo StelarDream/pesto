@@ -19,20 +19,22 @@ class CircularDependencyError(Exception):
     def __init__(self, query: Query[Any], chain: list[Query[Any]]) -> None:
         self.query = query
         self.chain = chain
-        super().__init__(f"Circular dependency detected: {query} depends on itself via {chain}")
+        super().__init__(
+            f"Circular dependency detected: {query} depends on itself via {chain}",
+        )
 
 
 class DataBase:
     source_data: WeakKeyDictionary[Source[Any], SourceCell[Any]]
     query_data: WeakKeyDictionary[Query[Any], QueryCell[Any]]
     revision: ContextVar[int]
-    stack: ContextStack[QueryFrame[Any]]
+    stack: ContextStack[[Query[Any]], QueryFrame[Any]]
 
     def __init__(self) -> None:
         self.source_data = WeakKeyDictionary()
         self.query_data = WeakKeyDictionary()
         self.revision = ContextVar("revision", default=0)
-        self.stack = ContextStack()
+        self.stack = ContextStack(QueryFrame)
 
     def now(self) -> int:
         return self.revision.get()
@@ -47,7 +49,7 @@ class DataBase:
         node: Node[T],
         comparator: Comparator[T],
     ) -> None:
-        frame = self.stack.peek()
+        frame = self.stack.peek_or()
         if frame is not None:
             frame.add_dependency(node, comparator)
 
@@ -67,7 +69,7 @@ class DataBase:
         source: Source[T],
         value: T,
     ) -> None:
-        if self.stack.peek() is not None:
+        if self.stack.peek_or() is not None:
             msg = "Cannot set source value while in a query context"
             raise RuntimeError(msg)
 
@@ -103,15 +105,14 @@ class DataBase:
         if cell is not None:
             cell.reset_dependencies(self)
 
-        frame = QueryFrame(query)
-        self.stack.push(frame)
+        self.stack.push(query)
         try:
             new = query.fn(self)
         except BaseException:
             self.query_data.pop(query, None)
             raise
         finally:
-            self.stack.pop()
+            frame = self.stack.pop()
 
         now = self.now()
         if cell is None:
