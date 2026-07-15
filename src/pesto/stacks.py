@@ -1,56 +1,53 @@
+from collections.abc import Callable
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from itertools import islice
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
+
+
+class EmptyStackError(ValueError):
+    def __init__(self, *args: object) -> None:
+        if not args:
+            args = ("no frame yet pushed",)
+        super().__init__(*args)
 
 
 class StackFrame[T]:
     value: T
-    parent: StackFrame[T] | None
+    parent: Self | None
 
     __slots__ = ("parent", "value")
 
-    def __init__(self, value: T, parent: StackFrame[T] | None = None) -> None:
+    def __init__(self, value: T, parent: Self | None = None) -> None:
         self.value = value
         self.parent = parent
 
     @property
-    def root(self) -> StackFrame[T]:
+    def root(self) -> Self:
         frame = self
         while frame.parent is not None:
             frame = frame.parent
         return frame
 
-    def pop(self) -> StackFrame[T] | None:
-        return self.parent
-
-    def push(self, value: T) -> StackFrame[T]:
-        return StackFrame(value, self)
-
     def __repr__(self) -> str:
-        return f"StackFrame(value={self.value})"
+        return f"{type(self).__name__}(value={self.value})"
 
     def __getstate__(self) -> list[T]:
-        out: list[T] = []
-        f = self
-        while f is not None:
-            out.append(f.value)
-            f = f.parent
-        return out[::-1]
+        return [frame.value for frame in self]
 
     def __setstate__(self, state: list[T]) -> None:
-        parent: StackFrame[T] | None = None
-        for value in state[:-1]:
-            parent = StackFrame(value, parent)
-
-        self.value = state[-1]
+        self.value = state[0]
+        parent = None
+        for value in islice(reversed(state), len(state) - 1):
+            parent = type(self)(value, parent)
         self.parent = parent
 
-    def __iter__(self) -> Generator[T]:
+    def __iter__(self) -> Generator[StackFrame[T]]:
         frame: StackFrame[T] | None = self
         while frame is not None:
-            yield frame.value
+            yield frame
             frame = frame.parent
 
     def __contains__(self, item: T) -> bool:
@@ -62,77 +59,90 @@ class StackFrame[T]:
         return False
 
 
-class ContextStack[T]:
-    context_stack: ContextVar[StackFrame[T] | None]
+class ContextStack[**P, T]:
+    context_frame: ContextVar[StackFrame[T] | None]
+    fn: Callable[P, T]
 
-    __slots__ = ("context_stack",)
+    def __init__(self, fn: Callable[..., T]) -> None:
+        self.fn = fn
+        self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
 
-    def __init__(self) -> None:
-        self.context_stack = ContextVar(
-            f"<Context: for {type(self).__name__}:{id(self)}>",
-            default=None,
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(fn={self.fn!r}, frame={self.context_frame.get()!r})"
         )
 
-    def peek[D](self, default: D = None) -> T | D:
-        frame = self.context_stack.get()
+    def peek(self) -> T:
+        frame = self.context_frame.get()
         if frame is None:
-            return default
-
+            raise EmptyStackError
         return frame.value
 
-    def root[D](self, default: D = None) -> T | D:
-        frame = self.context_stack.get()
+    def pop(self) -> T:
+        frame = self.context_frame.get()
+        if frame is None:
+            raise EmptyStackError
+        self.context_frame.set(frame.parent)
+        return frame.value
+
+    def push(self, *args: P.args, **kwargs: P.kwargs) -> T:
+        value = self.fn(*args, **kwargs)
+        frame = StackFrame(value, self.context_frame.get())
+        self.context_frame.set(frame)
+        return value
+
+    def peek_or[D](self, default: D = None) -> T | D:
+        frame = self.context_frame.get()
         if frame is None:
             return default
+        return frame.value
 
-        return frame.root.value
-
-    def pop[D](self, default: D = None) -> T | D:
-        frame = self.context_stack.get()
+    def pop_or[D](self, default: D = None) -> T | D:
+        frame = self.context_frame.get()
         if frame is None:
             return default
+        self.context_frame.set(frame.parent)
+        return frame.value
 
-        parent = frame.pop()
-        self.context_stack.set(parent)
-
-        if parent is None:
-            return default
-
-        return parent.value
-
-    def push(self, value: T) -> None:
-        frame = self.context_stack.get()
-        new = frame.push(value) if frame is not None else StackFrame(value)
-
-        self.context_stack.set(new)
-
-    def __getstate__(self) -> list[T]:
-        frame = self.context_stack.get()
+    def peek_or_run[D](self, default_factory: Callable[[], D]) -> T | D:
+        frame = self.context_frame.get()
         if frame is None:
-            return []
+            return default_factory()
+        return frame.value
 
-        return frame.__getstate__()
+    def pop_or_run[D](self, default_factory: Callable[[], D]) -> T | D:
+        frame = self.context_frame.get()
+        if frame is None:
+            return default_factory()
+        self.context_frame.set(frame.parent)
+        return frame.value
 
-    def __setstate__(self, state: list[T]) -> None:
+    def __getstate__(self) -> tuple[list[T], Callable[P, T]]:
+        frame = self.context_frame.get()
+        if frame is None:
+            return [], self.fn
+
+        return frame.__getstate__(), self.fn
+
+    def __setstate__(self, state: tuple[list[T], Callable[P, T]]) -> None:
+        value, self.fn = state
         frame: StackFrame[T] | None = None
-        if state:
+        if value:
             frame = StackFrame.__new__(StackFrame)
-            frame.__setstate__(state)
+            frame.__setstate__(value)
 
-        self.context_stack = ContextVar(
-            f"<Context: for {type(self).__name__}:{id(self)}>",
-            default=None,
-        )
-        self.context_stack.set(frame)
+        self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
+        self.context_frame.set(frame)
 
     def __iter__(self) -> Generator[T]:
-        frame = self.context_stack.get()
-        if frame is None:
+        current = self.context_frame.get()
+        if current is None:
             return
-        yield from frame
+        for frame in current:
+            yield frame.value
 
     def __contains__(self, item: T) -> bool:
-        frame = self.context_stack.get()
+        frame = self.context_frame.get()
         if frame is None:
             return False
 
