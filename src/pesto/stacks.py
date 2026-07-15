@@ -7,6 +7,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
 
+class EmptyStackError(ValueError):
+    def __init__(self, *args: object) -> None:
+        if not args:
+            args = ("no frame yet pushed",)
+        super().__init__(*args)
+
+
 class StackFrame[T]:
     value: T
     parent: Self | None
@@ -25,7 +32,7 @@ class StackFrame[T]:
         return frame
 
     def __repr__(self) -> str:
-        return f"StackFrame(value={self.value})"
+        return f"{type(self).__name__}(value={self.value})"
 
     def __getstate__(self) -> list[T]:
         return [frame.value for frame in self]
@@ -60,18 +67,21 @@ class ContextStack[**P, T]:
         self.fn = fn
         self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(fn={self.fn!r}, frame={self.context_frame.get()!r})"
+        )
+
     def peek(self) -> T:
         frame = self.context_frame.get()
         if frame is None:
-            msg = "no frame yet registered"
-            raise ValueError(msg)
+            raise EmptyStackError
         return frame.value
 
     def pop(self) -> T:
         frame = self.context_frame.get()
         if frame is None:
-            msg = "no frame yet registered"
-            raise ValueError(msg)
+            raise EmptyStackError
         self.context_frame.set(frame.parent)
         return frame.value
 
