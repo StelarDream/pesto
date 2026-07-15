@@ -93,7 +93,7 @@ def test_push_then_peek_returns_pushed_value() -> None:
 
 
 def test_push_does_not_consume_fn_args_between_calls() -> None:
-    def add(x: float, y: float) -> float:
+    def add(x: float, y: float = 0) -> float:
         return x + y
 
     stack = ContextStack(add)
