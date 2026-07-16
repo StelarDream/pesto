@@ -8,7 +8,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def counting[T](fn: Callable[[DataBase], T]) -> tuple[Callable[[DataBase], T], list[int]]:
+def counting[T](
+    fn: Callable[[DataBase], T],
+) -> tuple[Callable[[DataBase], T], list[int]]:
     """Wrap fn so each call is counted; returns (wrapped_fn, calls) where len(calls) == call count."""
     calls: list[int] = []
 
@@ -91,7 +93,7 @@ def test_dependencies_of_reports_recorded_dep_set() -> None:
     q = Query(fn)
 
     assert q.get(db) == 3
-    assert set(q.get_dependencies(db)) == {s1, s2}
+    assert set(q.get_dependencies(db).keys()) == {s1, s2}
 
 
 def test_diamond_graph_recomputes_once_per_revision() -> None:
@@ -164,7 +166,7 @@ def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
     with pytest.raises(ValueError, match="boom"):
         q.get(db)
 
-    assert q.resolve(db) is None
+    assert q.current_cell(db) is None
     assert list(db.stack) == []
 
 
@@ -205,8 +207,8 @@ def test_raise_mid_nested_query_unwinds_whole_chain() -> None:
     with pytest.raises(ValueError, match="inner boom"):
         outer.get(db)
 
-    assert inner.resolve(db) is None
-    assert outer.resolve(db) is None
+    assert inner.current_cell(db) is None
+    assert outer.current_cell(db) is None
     assert list(db.stack) == []
 
 
@@ -376,7 +378,7 @@ def test_cycle_detected_partway_through_chain_leaves_earlier_cells_uncached() ->
         a.get(db)
 
     assert exc_info.value.chain == [a, b, c, b]
-    assert a.resolve(db) is None
-    assert b.resolve(db) is None
-    assert c.resolve(db) is None
+    assert a.current_cell(db) is None
+    assert b.current_cell(db) is None
+    assert c.current_cell(db) is None
     assert list(db.stack) == []

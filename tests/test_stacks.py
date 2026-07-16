@@ -2,7 +2,7 @@ import contextvars
 
 import pytest
 
-from pesto.stacks import ContextStack, EmptyStackError, StackFrame
+from pesto.context_tools.stacks import ContextStack, EmptyStackError, StackFrame
 
 
 def identity(x: int) -> int:

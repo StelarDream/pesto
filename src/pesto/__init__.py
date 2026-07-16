@@ -1,7 +1,6 @@
-from .comparators import Comparator
-from .data_bases import CircularDependencyError, DataBase
-from .queries import Query
-from .sources import Source
+from .data_bases import DataBase
+from .interfaces import Comparator
+from .nodes import CircularDependencyError, Query, Source
 
 __all__ = [
     "CircularDependencyError",
