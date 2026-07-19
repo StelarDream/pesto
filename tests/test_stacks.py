@@ -2,7 +2,7 @@ import contextvars
 
 import pytest
 
-from pesto.context_tools.stacks import ContextStack, EmptyStackError, StackFrame
+from pesto.context_tools.stacks import ContextScopedStack, EmptyStackError, StackFrame
 
 
 def identity(x: int) -> int:
@@ -73,7 +73,7 @@ def test_pickle_round_trip() -> None:
 
 
 def test_peek_and_pop_raise_when_empty() -> None:
-    stack = ContextStack(lambda: 1)
+    stack = ContextScopedStack(lambda: 1)
 
     with pytest.raises(EmptyStackError):
         stack.peek()
@@ -86,7 +86,7 @@ def test_push_then_peek_returns_pushed_value() -> None:
     def times_two(x: float) -> float:
         return x * 2
 
-    stack = ContextStack(times_two)
+    stack = ContextScopedStack(times_two)
 
     assert stack.push(5) == 10
     assert stack.peek() == 10
@@ -96,7 +96,7 @@ def test_push_does_not_consume_fn_args_between_calls() -> None:
     def add(x: float, y: float = 0) -> float:
         return x + y
 
-    stack = ContextStack(add)
+    stack = ContextScopedStack(add)
 
     stack.push(1)
     stack.push(2, y=3)
@@ -107,7 +107,7 @@ def test_push_does_not_consume_fn_args_between_calls() -> None:
 
 
 def test_pop_restores_previous_frame() -> None:
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
 
     stack.push(1)
     stack.push(2)
@@ -121,27 +121,27 @@ def test_pop_restores_previous_frame() -> None:
 
 
 def test_peek_or_returns_default_when_empty() -> None:
-    stack = ContextStack(lambda: 1)
+    stack = ContextScopedStack(lambda: 1)
 
     assert stack.peek_or(42) == 42
     assert stack.peek_or() is None
 
 
 def test_peek_or_returns_value_when_present() -> None:
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(7)
 
     assert stack.peek_or(42) == 7
 
 
 def test_pop_or_returns_default_when_empty_and_does_not_raise() -> None:
-    stack = ContextStack(lambda: 1)
+    stack = ContextScopedStack(lambda: 1)
 
     assert stack.pop_or(42) == 42
 
 
 def test_pop_or_pops_value_when_present() -> None:
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
     stack.push(7)
 
@@ -156,7 +156,7 @@ def test_peek_or_run_calls_factory_only_when_empty() -> None:
         calls.append(1)
         return 99
 
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
 
     assert stack.peek_or_run(factory) == 99
     assert len(calls) == 1
@@ -174,7 +174,7 @@ def test_pop_or_run_calls_factory_only_when_empty() -> None:
         calls.append(1)
         return 99
 
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
 
     assert stack.pop_or_run(factory) == 1
@@ -184,7 +184,7 @@ def test_pop_or_run_calls_factory_only_when_empty() -> None:
 
 
 def test_iter_yields_values_leaf_to_root() -> None:
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
     stack.push(2)
     stack.push(3)
@@ -193,13 +193,13 @@ def test_iter_yields_values_leaf_to_root() -> None:
 
 
 def test_iter_empty_yields_nothing() -> None:
-    stack = ContextStack(lambda: 1)
+    stack = ContextScopedStack(lambda: 1)
 
     assert list(stack) == []
 
 
 def test_contains() -> None:
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
     stack.push(2)
 
@@ -209,7 +209,7 @@ def test_contains() -> None:
 
 
 def test_contains_empty_is_false() -> None:
-    stack = ContextStack(lambda: 1)
+    stack = ContextScopedStack(lambda: 1)
 
     assert 1 not in stack
 
@@ -218,7 +218,7 @@ def test_getstate_empty_stack() -> None:
     def fn(x: int) -> int:
         return x
 
-    stack = ContextStack(fn)
+    stack = ContextScopedStack(fn)
 
     values, restored_fn = stack.__getstate__()
 
@@ -230,14 +230,14 @@ def test_getstate_setstate_round_trip() -> None:
     def fn(x: int) -> int:
         return x
 
-    stack = ContextStack(fn)
+    stack = ContextScopedStack(fn)
     stack.push(1)
     stack.push(2)
     stack.push(3)
 
     state = stack.__getstate__()
 
-    restored: ContextStack[[int], int] = ContextStack.__new__(ContextStack)
+    restored: ContextScopedStack[[int], int] = ContextScopedStack.__new__(ContextScopedStack)
     restored.__setstate__(state)
 
     assert list(restored) == [3, 2, 1]
@@ -247,8 +247,8 @@ def test_getstate_setstate_round_trip() -> None:
 def test_pickle_round_trip_empty[T]() -> None:
     import pickle  # noqa: PLC0415
 
-    stack = ContextStack(identity)
-    restored: ContextStack[[T], T] = pickle.loads(pickle.dumps(stack))  # noqa: S301
+    stack = ContextScopedStack(identity)
+    restored: ContextScopedStack[[T], T] = pickle.loads(pickle.dumps(stack))  # noqa: S301
 
     with pytest.raises(EmptyStackError):
         restored.peek()
@@ -257,18 +257,18 @@ def test_pickle_round_trip_empty[T]() -> None:
 def test_pickle_round_trip_with_frames() -> None:
     import pickle  # noqa: PLC0415
 
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
     stack.push(2)
 
-    restored: ContextStack[[int], int] = pickle.loads(pickle.dumps(stack))  # noqa: S301
+    restored: ContextScopedStack[[int], int] = pickle.loads(pickle.dumps(stack))  # noqa: S301
 
     assert list(restored) == [2, 1]
 
 
 def test_frame_not_visible_across_unrelated_context() -> None:
     """Pushes made in one contextvars.Context aren't visible from an unrelated one."""
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
 
     def check_in_new_context() -> None:
@@ -285,7 +285,7 @@ def test_frame_not_visible_across_unrelated_context() -> None:
 def test_frame_isolated_per_context_after_copy() -> None:
     """A context copied via contextvars.copy_context() sees pushes made before the copy,
     but further pushes inside that copy don't leak back out."""
-    stack = ContextStack(identity)
+    stack = ContextScopedStack(identity)
     stack.push(1)
 
     ctx = contextvars.copy_context()

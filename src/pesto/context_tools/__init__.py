@@ -1,8 +1,8 @@
 from .counter import ContextCounter
-from .stacks import ContextStack, EmptyStackError
+from .stacks import ContextScopedStack, EmptyStackError
 
 __all__ = (
     "ContextCounter",
-    "ContextStack",
+    "ContextScopedStack",
     "EmptyStackError",
 )

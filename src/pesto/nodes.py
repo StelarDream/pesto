@@ -59,7 +59,7 @@ class Source[T](ISource[T]):
         return cell.get()
 
     def set(self, db: DataBase, value: T) -> None:
-        if db.stack.peek_or() is not None:
+        if db.stack.peek_or(None) is not None:
             msg = "Cannot set source value while in a query context"
             raise RuntimeError(msg)
 

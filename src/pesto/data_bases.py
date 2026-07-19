@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
-from .context_tools import ContextCounter, ContextStack
+from .context_tools import ContextCounter, ContextScopedStack
 
 if TYPE_CHECKING:
     from .interfaces import Comparator, INode, IQuery, IQueryCell, ISource, ISourceCell
@@ -23,13 +23,13 @@ class DataBase:
     source_data: WeakKeyDictionary[ISource[Any], ISourceCell[Any]]
     query_data: WeakKeyDictionary[IQuery[Any], IQueryCell[Any]]
     revision: ContextCounter
-    stack: ContextStack[[IQuery[Any]], DBStackFrame[Any]]
+    stack: ContextScopedStack[[IQuery[Any]], DBStackFrame[Any]]
 
     def __init__(self) -> None:
         self.source_data = WeakKeyDictionary()
         self.query_data = WeakKeyDictionary()
         self.revision = ContextCounter()
-        self.stack = ContextStack(DBStackFrame)
+        self.stack = ContextScopedStack(DBStackFrame)
 
     def now(self) -> int:
         return self.revision.now()
@@ -38,7 +38,7 @@ class DataBase:
         return self.revision.increment()
 
     def add_dep(self, query: INode[Any], comparator: Comparator[Any]) -> None:
-        frame = self.stack.peek_or()
+        frame = self.stack.peek_or(None)
         if frame is None:
             return
         frame.add_dep(query, comparator)
