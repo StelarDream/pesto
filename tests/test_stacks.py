@@ -124,7 +124,7 @@ def test_peek_or_returns_default_when_empty() -> None:
     stack = ContextScopedStack(lambda: 1)
 
     assert stack.peek_or(42) == 42
-    assert stack.peek_or() is None
+    assert stack.peek_or(None) is None
 
 
 def test_peek_or_returns_value_when_present() -> None:
@@ -237,7 +237,9 @@ def test_getstate_setstate_round_trip() -> None:
 
     state = stack.__getstate__()
 
-    restored: ContextScopedStack[[int], int] = ContextScopedStack.__new__(ContextScopedStack)
+    restored: ContextScopedStack[[int], int] = ContextScopedStack.__new__(
+        ContextScopedStack,
+    )
     restored.__setstate__(state)
 
     assert list(restored) == [3, 2, 1]

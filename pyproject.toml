@@ -22,7 +22,7 @@ reportUnknownVariableType = false
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["E501", "D", "PLR2004"]
+ignore = ["CPY001", "E501", "D", "PLR2004"]
 fixable = ["ALL"]
 unfixable = []
 

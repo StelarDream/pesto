@@ -1,77 +1,65 @@
 from collections.abc import Callable
-from operator import eq
-from typing import TYPE_CHECKING, Any, Protocol, overload
+from typing import TYPE_CHECKING, Any, Protocol
 
 from ._types import MapLike
 
 if TYPE_CHECKING:
     from .data_bases import DataBase
 
-type Dependencies = MapLike[INode[Any], Comparator[Any]]
-
-# --- Comparators ---
-
 type Comparator[T] = Callable[[T, T], bool]
+type QueryFn[T] = Callable[[DataBase], T]
+type Dependencies = MapLike[ICell[Any, Any], Comparator[Any]]
 
 
-# --- Cells ---
+class INode[T, C: ICell[Any, Any] = ICell[T]](Protocol):
+    def cell(self, db: DataBase) -> C | None:
+        raise NotImplementedError
+
+    def get(self, db: DataBase, comparator: Comparator[T]) -> T:
+        raise NotImplementedError
 
 
-class ICell[T](Protocol):
-    verified_at: int
-
-    def get(self) -> T: ...
-
-    def add_ref(self, query: IQuery[Any], comparator: Comparator[T]) -> None: ...
-    def drop_ref(self, query: IQuery[Any], comparator: Comparator[T]) -> None: ...
-
-    def changed_at(self, comparator: Comparator[T]) -> int: ...
-
-    def update(self, db: DataBase, new_value: T) -> None: ...
+class ISource[T, C: ISourceCell[Any, Any] = ISourceCell[T]](INode[T, C], Protocol):
+    def set(self, db: DataBase, value: T) -> None:
+        raise NotImplementedError
 
 
-class ISourceCell[T](ICell[T], Protocol):
-    def get_source(self) -> ISource[T]: ...
+class IQuery[T, C: IQueryCell[Any, Any] = IQueryCell[T]](INode[T, C], Protocol): ...
 
 
-class IQueryCell[T](ICell[T], Protocol):
-    def get_query(self) -> IQuery[T]: ...
+class ICell[T, O: INode[Any, Any] = INode[T]](Protocol):
+    def owner(self) -> O:
+        raise NotImplementedError
 
-    def add_dependencies(self, db: DataBase, dependencies: Dependencies) -> None: ...
-    def reset_dependencies(self, db: DataBase) -> None: ...
-    def get_dependencies(self) -> dict[INode[Any], Comparator[Any]]: ...
+    @classmethod
+    def new(cls, owner: O, db: DataBase, comparator: Comparator[T]) -> T:
+        raise NotImplementedError
 
+    def get(self, db: DataBase, comparator: Comparator[T]) -> T:
+        raise NotImplementedError
 
-# --- Nodes ---
+    def refresh(self, db: DataBase) -> T:
+        raise NotImplementedError
 
+    def add_ref(self, query: IQuery[Any, Any], comparator: Comparator[Any]) -> None:
+        raise NotImplementedError
 
-class INode[T](Protocol):
-    def current_cell[D](self, db: DataBase, default: D = None) -> ICell[T] | D: ...
-    def cell(self, db: DataBase) -> ICell[T]: ...
+    def drop_ref(self, query: IQuery[Any, Any], comparator: Comparator[Any]) -> None:
+        raise NotImplementedError
 
-    def get(self, db: DataBase, comparator: Comparator[T] = eq) -> T: ...
+    def changed_at(self, comparator: Comparator[T]) -> int:
+        raise NotImplementedError
 
-
-class ISource[T](INode[T], Protocol):
-    def current_cell[D](
-        self,
-        db: DataBase,
-        default: D = None,
-    ) -> ISourceCell[T] | D: ...
-    def cell(self, db: DataBase) -> ISourceCell[T]: ...
-
-    def set(self, db: DataBase, value: T) -> None: ...
+    def verify_at(self, revision: int, new: T) -> None:
+        raise NotImplementedError
 
 
-class IQuery[T](INode[T], Protocol):
-    def current_cell[D](self, db: DataBase, default: D = None) -> IQueryCell[T] | D: ...
-    def cell(self, db: DataBase) -> IQueryCell[T]: ...
+class ISourceCell[T, O: ISource[Any, Any] = ISource[T]](ICell[T, O], Protocol): ...
 
-    @overload
-    def get_dependencies(self, db: DataBase) -> dict[INode[Any], Comparator[Any]]: ...
-    @overload
-    def get_dependencies[D](
-        self,
-        db: DataBase,
-        default: D,
-    ) -> dict[INode[Any], Comparator[Any]] | D: ...
+
+class IQueryCell[T, O: IQuery[Any, Any] = IQuery[T]](ICell[T, O], Protocol):
+    def add_dependencies(self, dependencies: Dependencies) -> None:
+        raise NotImplementedError
+
+    def reset_dependencies(self) -> None:
+        raise NotImplementedError

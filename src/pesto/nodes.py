@@ -1,154 +1,92 @@
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from operator import eq
-from typing import Any, NoReturn, overload
+from typing import TYPE_CHECKING, Any
 
-from pesto.sentinels import MISSING, MissingType
+from .cells import Cell, QueryCell, SourceCell
+from .interfaces import INode, IQuery, ISource
 
-from .cells import QueryCell, SourceCell
-from .data_bases import DataBase
-from .interfaces import Comparator, INode, IQuery, IQueryCell, ISource, ISourceCell
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-type QueryFn[T] = Callable[[DataBase], T]
-
-
-class CircularDependencyError(Exception):
-    def __init__(self, query: IQuery[Any], chain: list[IQuery[Any]]) -> None:
-        self.query = query
-        self.chain = chain
-        super().__init__(
-            f"Circular dependency detected: {query} depends on itself via {chain}",
-        )
+    from .data_bases import DataBase
+    from .interfaces import Comparator, QueryFn
 
 
-class Source[T](ISource[T]):
-    default_factory: Callable[[], T]
+class Node[T, C: Cell[Any, Any] = Cell[T]](INode[T, C]): ...
 
-    @overload
-    def __init__(self, default_factory: Callable[[], T]) -> None: ...
-    @overload
-    def __init__(self, *, default_value: T) -> None: ...
 
-    def __init__(
-        self,
-        default_factory: Callable[[], T] | None = None,
-        *,
-        default_value: T | None = None,
-    ) -> None:
-        def lazy_boom() -> NoReturn:
-            msg = "no default available on get"
-            raise ValueError(msg)
+class Source[T](ISource[T, SourceCell[T]], Node[T, SourceCell[T]], ABC):
+    @property
+    @abstractmethod
+    def default(self) -> T:
+        raise NotImplementedError
 
-        self.default_factory = (
-            (lambda: default_value)
-            if default_value is not None
-            else default_factory or lazy_boom
-        )
+    def cell(self, db: DataBase) -> SourceCell[T] | None:
+        return db.source_data.get(self)
 
-    def current_cell[D](self, db: DataBase, default: D = None) -> ISourceCell[T] | D:
-        return db.source_data.get(self, default)
-
-    def cell(self, db: DataBase) -> ISourceCell[T]:
-        cell = self.current_cell(db)
-        if cell is None:
-            cell = SourceCell(db, self.default_factory(), self)
-        return cell
-
-    def get(self, db: DataBase, comparator: Callable[[T, T], bool] = eq) -> T:
+    def get(self, db: DataBase, comparator: Comparator[T] = eq) -> T:
         cell = self.cell(db)
-        db.add_dep(self, comparator)
-        return cell.get()
+        if cell is None:
+            return SourceCell[T].new(self, db, comparator)
+        return cell.get(db, comparator)
 
     def set(self, db: DataBase, value: T) -> None:
-        if db.stack.peek_or(None) is not None:
-            msg = "Cannot set source value while in a query context"
-            raise RuntimeError(msg)
-
-        cell = self.current_cell(db)
+        cell = self.cell(db)
         if cell is None:
-            cell = SourceCell(db, value, self)
-        else:
-            cell.update(db, value)
+            SourceCell(self, db, value)
+            return
+        cell.set(db, value)
 
 
-class Query[T](IQuery[T]):
+class DefaultFactorySource[T](Source[T]):
+    default_factory: Callable[[], T]
+
+    def __init__(self, default_factory: Callable[[], T]) -> None:
+        self.default_factory = default_factory
+
+    @property
+    def default(self) -> T:
+        return self.default_factory()
+
+
+class DefaultValueSource[T](Source[T]):
+    default_value: T
+
+    def __init__(self, default_value: T) -> None:
+        self.default_value = default_value
+
+    @property
+    def default(self) -> T:
+        return self.default_value
+
+
+class Query[T](IQuery[T, QueryCell[T]], Node[T, QueryCell[T]]):
     fn: QueryFn[T]
 
     def __init__(self, fn: QueryFn[T]) -> None:
         self.fn = fn
 
-    def current_cell[D](self, db: DataBase, default: D = None) -> IQueryCell[T] | D:
-        return db.query_data.get(self, default)
+    def cell(self, db: DataBase) -> QueryCell[T] | None:
+        return db.query_data.get(self)
 
-    def cell(self, db: DataBase) -> IQueryCell[T]:
-        cell = self.current_cell(db)
-        if cell is None or not self.is_green(db, cell):
-            cell = self.recompute(db, cell)
-        return cell
-
-    def get(self, db: DataBase, comparator: Callable[[T, T], bool] = eq) -> T:
-        active = [frame.query for frame in db.stack]
-        if self in active:
-            chain = [*reversed(active), self]
-            raise CircularDependencyError(self, chain)
-
+    def get(self, db: DataBase, comparator: Comparator[T] = eq) -> T:
         cell = self.cell(db)
-        db.add_dep(self, comparator)
-        return cell.get()
-
-    @overload
-    def get_dependencies(self, db: DataBase) -> dict[INode[Any], Comparator[Any]]: ...
-    @overload
-    def get_dependencies[D](
-        self,
-        db: DataBase,
-        default: D,
-    ) -> dict[INode[Any], Comparator[Any]] | D: ...
-
-    def get_dependencies[D](
-        self,
-        db: DataBase,
-        default: D | MissingType = MISSING,
-    ) -> dict[INode[Any], Comparator[Any]] | D:
-        cell = self.current_cell(db)
         if cell is None:
-            if default is MISSING:
-                msg = "no cell registered, no dependencies can be found"
-                raise ValueError(msg)
-            return default
-        return cell.get_dependencies()
+            return QueryCell[T].new(self, db, comparator)
+        return cell.get(db, comparator)
 
-    def is_green(self, db: DataBase, cell: IQueryCell[T]) -> bool:
-        now = db.now()
-        if cell.verified_at == now:
-            return True
-
-        for node, comparator in cell.get_dependencies().items():
-            dep_cell = node.cell(db)
-
-            changed_at = dep_cell.changed_at(comparator)
-            if changed_at > cell.verified_at:
-                return False
-
-        cell.verified_at = now
-        return True
-
-    def recompute(self, db: DataBase, cell: IQueryCell[T] | None) -> IQueryCell[T]:
-        if cell is not None:
-            cell.reset_dependencies(db)
-
-        db.stack.push(self)
-        try:
-            new = self.fn(db)
-        except:
-            db.query_data.pop(self, None)
-            raise
-        finally:
-            frame = db.stack.pop()
-
+    def get_dependencies(self, db: DataBase) -> dict[Node[Any], Comparator[Any]]:
+        cell = self.cell(db)
         if cell is None:
-            cell = QueryCell(db, new, self)
-        else:
-            cell.update(db, new)
+            return {}
+        return {
+            cell.owner(): comparator
+            for cell, comparator in cell.get_dependencies().items()
+        }
 
-        cell.add_dependencies(db, frame.dependencies)
-        return cell
+    def is_green(self, db: DataBase) -> bool:
+        cell = self.cell(db)
+        if cell is None:
+            return False
+        return cell.is_green(db)
