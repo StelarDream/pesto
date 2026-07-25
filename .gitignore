@@ -6,5 +6,6 @@
 .venv
 
 .ruff_cache/
+.pytest_cache
 
 .vscode

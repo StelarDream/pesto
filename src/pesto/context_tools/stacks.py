@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import contextmanager
 from contextvars import ContextVar
 from itertools import islice
 from typing import TYPE_CHECKING, Self
@@ -59,13 +60,16 @@ class StackFrame[T]:
         return False
 
 
-class ContextStack[**P, T]:
+class ContextScopedStack[**P, T]:
     context_frame: ContextVar[StackFrame[T] | None]
     fn: Callable[P, T]
 
     def __init__(self, fn: Callable[..., T]) -> None:
         self.fn = fn
-        self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
+        self.context_frame = ContextVar(
+            f"{type(self).__name__}.context_frame",
+            default=None,
+        )
 
     def __repr__(self) -> str:
         return (
@@ -91,13 +95,21 @@ class ContextStack[**P, T]:
         self.context_frame.set(frame)
         return value
 
-    def peek_or[D](self, default: D = None) -> T | D:
+    @contextmanager
+    def scope(self, *args: P.args, **kwargs: P.kwargs) -> Generator[T]:
+        value = self.push(*args, **kwargs)
+        try:
+            yield value
+        finally:
+            self.pop()
+
+    def peek_or[D](self, default: D) -> T | D:
         frame = self.context_frame.get()
         if frame is None:
             return default
         return frame.value
 
-    def pop_or[D](self, default: D = None) -> T | D:
+    def pop_or[D](self, default: D) -> T | D:
         frame = self.context_frame.get()
         if frame is None:
             return default
@@ -131,7 +143,10 @@ class ContextStack[**P, T]:
             frame = StackFrame.__new__(StackFrame)
             frame.__setstate__(value)
 
-        self.context_frame = ContextVar(f"{type(self)}.context_frame", default=None)
+        self.context_frame = ContextVar(
+            f"{type(self).__name__}.context_frame",
+            default=None,
+        )
         self.context_frame.set(frame)
 
     def __iter__(self) -> Generator[T]:

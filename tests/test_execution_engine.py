@@ -2,13 +2,15 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from pesto import CircularDependencyError, DataBase, Query, Source
+from pesto import CircularDependencyError, DataBase, Query, source
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def counting[T](fn: Callable[[DataBase], T]) -> tuple[Callable[[DataBase], T], list[int]]:
+def counting[T](
+    fn: Callable[[DataBase], T],
+) -> tuple[Callable[[DataBase], T], list[int]]:
     """Wrap fn so each call is counted; returns (wrapped_fn, calls) where len(calls) == call count."""
     calls: list[int] = []
 
@@ -21,7 +23,7 @@ def counting[T](fn: Callable[[DataBase], T]) -> tuple[Callable[[DataBase], T], l
 
 def test_get_source_and_query_over_it() -> None:
     db = DataBase()
-    s = Source(lambda: 1)
+    s = source(1)
 
     def double(db: DataBase) -> int:
         return s.get(db) * 2
@@ -34,7 +36,7 @@ def test_get_source_and_query_over_it() -> None:
 
 def test_cache_hit_same_query_twice_calls_fn_once() -> None:
     db = DataBase()
-    s = Source(lambda: 1)
+    s = source(1)
     fn, calls = counting(lambda db: s.get(db) * 2)
     q = Query(fn)
 
@@ -45,7 +47,7 @@ def test_cache_hit_same_query_twice_calls_fn_once() -> None:
 
 def test_cache_miss_after_source_set_calls_fn_again() -> None:
     db = DataBase()
-    s = Source(lambda: 1)
+    s = source(1)
     fn, calls = counting(lambda db: s.get(db) * 2)
     q = Query(fn)
 
@@ -60,7 +62,7 @@ def test_cache_miss_after_source_set_calls_fn_again() -> None:
 
 def test_early_cutoff_stops_transitive_recompute_on_unchanged_output() -> None:
     db = DataBase()
-    s = Source(lambda: 4)
+    s = source(4)
 
     # direct dependent: output changes with |s|'s sign, so setting -4 keeps it unchanged
     direct_fn, direct_calls = counting(lambda db: abs(s.get(db)))
@@ -82,8 +84,8 @@ def test_early_cutoff_stops_transitive_recompute_on_unchanged_output() -> None:
 
 def test_dependencies_of_reports_recorded_dep_set() -> None:
     db = DataBase()
-    s1 = Source(lambda: 1)
-    s2 = Source(lambda: 2)
+    s1 = source(1)
+    s2 = source(2)
 
     def fn(db: DataBase) -> int:
         return s1.get(db) + s2.get(db)
@@ -91,12 +93,12 @@ def test_dependencies_of_reports_recorded_dep_set() -> None:
     q = Query(fn)
 
     assert q.get(db) == 3
-    assert set(q.get_dependencies(db)) == {s1, s2}
+    assert set(q.get_dependencies(db).keys()) == {s1, s2}
 
 
 def test_diamond_graph_recomputes_once_per_revision() -> None:
     db = DataBase()
-    a = Source(lambda: 1)
+    a = source(1)
 
     b_fn, b_calls = counting(lambda db: a.get(db) + 1)
     b = Query(b_fn)
@@ -122,9 +124,9 @@ def test_diamond_graph_recomputes_once_per_revision() -> None:
 
 def test_conditional_dependency_set_changes_between_runs() -> None:
     db = DataBase()
-    flag = Source(lambda: True)
-    on_branch = Source(lambda: 1)
-    off_branch = Source(lambda: 100)
+    flag = source(True)
+    on_branch = source(1)
+    off_branch = source(100)
 
     def fn(db: DataBase) -> int:
         if flag.get(db):
@@ -164,7 +166,7 @@ def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
     with pytest.raises(ValueError, match="boom"):
         q.get(db)
 
-    assert q.resolve(db) is None
+    assert q.cell(db) is None
     assert list(db.stack) == []
 
 
@@ -205,8 +207,8 @@ def test_raise_mid_nested_query_unwinds_whole_chain() -> None:
     with pytest.raises(ValueError, match="inner boom"):
         outer.get(db)
 
-    assert inner.resolve(db) is None
-    assert outer.resolve(db) is None
+    assert inner.cell(db) is None
+    assert outer.cell(db) is None
     assert list(db.stack) == []
 
 
@@ -241,7 +243,7 @@ def test_raise_mid_nested_query_next_get_reruns_whole_chain() -> None:
 def test_raise_does_not_corrupt_sibling_dependency_state() -> None:
     # A cache entry that exists before a failed recompute must survive untouched.
     db = DataBase()
-    s = Source(lambda: 1)
+    s = source(1)
 
     def fn(db: DataBase) -> int:
         return s.get(db) * 2
@@ -343,7 +345,7 @@ def test_db_still_usable_after_cycle_error() -> None:
     with pytest.raises(CircularDependencyError):
         q.get(db)
 
-    s = Source(lambda: 9)
+    s = source(9)
     assert s.get(db) == 9
 
     def ok_fn(db: DataBase) -> int:
@@ -376,7 +378,7 @@ def test_cycle_detected_partway_through_chain_leaves_earlier_cells_uncached() ->
         a.get(db)
 
     assert exc_info.value.chain == [a, b, c, b]
-    assert a.resolve(db) is None
-    assert b.resolve(db) is None
-    assert c.resolve(db) is None
+    assert a.cell(db) is None
+    assert b.cell(db) is None
+    assert c.cell(db) is None
     assert list(db.stack) == []

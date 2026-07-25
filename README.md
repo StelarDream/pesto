@@ -4,9 +4,8 @@ mutable source state and recomputes only what an edit actually touches.
 
 > Rust is red, Python is blue and yellow which makes green. Salsa is red, so Pesto is green.
 
-**This is the first tagged release and it's an early alpha.** The core engine works and is
-tested, but the ergonomic surface (decorators, parameterized queries) isn't here yet — see
-the roadmap below.
+**Early alpha.** The core engine and decorator surface are in place and tested; declared
+dependencies, serialization, and concurrency are not yet — see the roadmap below.
 
 ## What works in this release
 
@@ -23,16 +22,27 @@ the roadmap below.
   `CircularDependencyError` (not a `RecursionError`), and the database stays usable afterward.
 - **Clean failure semantics** — if a query raises mid-run, no partial cell is written, the
   call stack unwinds cleanly, sibling cache entries are untouched, and the next `get` re-runs.
+- **Parameterized queries** — `@query` wraps `(db, *args, **kwargs) -> T` into a `RichQuery`
+  that dispatches to one memoized cell per distinct argument set; `q(db, user_id=1)` and
+  `q(db, 1)` always resolve to the same cell. `@query.plain` keeps the argument-free path.
 
 ## Public API
 
 ```python
-from pesto import DataBase, Query, Source, Comparator, CircularDependencyError
+from pesto import DataBase, Query, RichQuery, Source, Comparator, CircularDependencyError, query, source
 ```
 
-- `Source[T]` — a named leaf slot with an optional initial-value factory.
-- `Query[T]` — wraps a `fn: (DataBase) -> T`. Constructed by hand as `Query(fn)` for now.
+- `source(value)` / `source(factory=fn)` — create a `Source[T]` leaf with a default value or factory.
+- `@query` — decorator that wraps `(db, *args, **kwargs) -> T` into a `RichQuery[T]`; calling
+  `q(db, x=1)` always resolves to the same memoized cell for equal arguments, regardless of
+  positional-vs-keyword style or default-arg elision.
+- `@query.plain` — decorator for the argument-free shape `(db) -> T`; produces a plain `Query[T]`
+  with no per-call dispatch overhead.
+- `RichQuery[T].getter(comparator)` — returns a bound callable that applies a custom comparator,
+  enabling early cutoff for callers that depend on this query.
 - `DataBase` — owns the revision counter and the storage for sources and query results.
+- `Query[T]` / `Source[T]` — low-level node types; usable directly when the decorator surface is
+  too much.
 
 ## Requirements
 
@@ -49,8 +59,7 @@ uv sync
 
 ## Not in this release (see [TODO.md](TODO.md))
 
-- **v0.2** — `@query` decorator and `RichQuery` for parameterized queries (`user_by_id(db, 1)`).
-- **v0.3** — declared dependencies (`db.depends(...)`).
+- **v0.3** — declared dependencies (`db.depends(A, B, C)` and `@query(A, B, C)`).
 - **v0.4** — serialization of a populated database.
 - **v0.5** — concurrency (the engine is single-threaded today; `ContextVar` usage anticipates
   it but nothing is synchronized yet).
