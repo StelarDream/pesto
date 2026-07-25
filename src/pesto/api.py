@@ -31,7 +31,7 @@ def source[T](
     raise ValueError
 
 
-class query:
+class query:  # noqa: N801
     def __new__[**P, T](cls, fn: RichQueryFn[P, T]) -> RichQuery[P, T]:
         return RichQuery(fn)
 
