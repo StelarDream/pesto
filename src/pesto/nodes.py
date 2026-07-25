@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .interfaces import Comparator, QueryFn
 
 
-class Node[T, C: Cell[Any, Any] = Cell[T]](INode[T, C]): ...
+class Node[T, C: Cell[Any, Any] = Cell[T]](INode[T, C], ABC): ...
 
 
 class Source[T](ISource[T, SourceCell[T]], Node[T, SourceCell[T]], ABC):
