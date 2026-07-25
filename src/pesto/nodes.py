@@ -90,3 +90,10 @@ class Query[T](IQuery[T, QueryCell[T]], Node[T, QueryCell[T]]):
         if cell is None:
             return False
         return cell.is_green(db)
+
+    def __call__(self, db: DataBase, comparator: Comparator[T] = eq) -> T:
+        return self.get(db, comparator)
+
+    @property
+    def __wrapped__(self) -> QueryFn[T]:
+        return self.fn
