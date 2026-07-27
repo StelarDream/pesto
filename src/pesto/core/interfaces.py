@@ -1,14 +1,8 @@
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
-
-from ._types import MapLike
 
 if TYPE_CHECKING:
     from .data_bases import DataBase
-
-type Comparator[T] = Callable[[T, T], bool]
-type QueryFn[T] = Callable[[DataBase], T]
-type Dependencies = MapLike[ICell[Any, Any], Comparator[Any]]
+    from .types import Comparator, Dependencies
 
 
 class INode[T, C: ICell[Any, Any] = ICell[T]](Protocol):

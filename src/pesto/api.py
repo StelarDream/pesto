@@ -1,14 +1,13 @@
 from typing import TYPE_CHECKING, cast, overload
 
-from ._types import MISSING, MissingType
-from .nodes import DefaultFactorySource, DefaultValueSource, Query, Source
-from .rich_queries import RichQuery
+from pesto._types import MISSING, MissingType
+from pesto.impl.nodes import DefaultFactorySource, DefaultValueSource, Query, Source
+from pesto.tooling.rich_queries import RichQuery, RichQueryFn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .interfaces import QueryFn
-    from .rich_queries import RichQueryFn
+    from pesto.core.types import QueryFn
 
 
 @overload
@@ -38,4 +37,3 @@ class query:  # noqa: N801
     @staticmethod
     def plain[T](fn: QueryFn[T]) -> Query[T]:
         return Query(fn)
-

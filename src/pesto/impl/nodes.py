@@ -3,14 +3,16 @@ from collections.abc import Callable
 from operator import eq
 from typing import TYPE_CHECKING, Any
 
+from pesto.core.interfaces import INode, IQuery, ISource
+
 from .cells import Cell, QueryCell, SourceCell
-from .interfaces import INode, IQuery, ISource
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .data_bases import DataBase
-    from .interfaces import Comparator, QueryFn
+    from pesto.core.data_bases import DataBase
+    from pesto.core.types import Comparator, QueryFn
+
 
 
 class Node[T, C: Cell[Any, Any] = Cell[T]](INode[T, C], ABC): ...

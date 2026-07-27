@@ -2,13 +2,14 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 from weakref import ReferenceType, WeakKeyDictionary, WeakSet
 
-from .interfaces import ICell, IQuery, IQueryCell, ISourceCell
+from pesto.core.interfaces import ICell, IQuery, IQueryCell, ISourceCell
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from .data_bases import DataBase
-    from .interfaces import Comparator, Dependencies
+    from pesto.core.data_bases import DataBase
+    from pesto.core.types import Comparator, Dependencies
+
     from .nodes import Node, Query, Source
 
 

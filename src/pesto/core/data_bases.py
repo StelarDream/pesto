@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary
 
-from .context_tools import ContextCounter, ContextScopedStack
+from pesto.context_tools import ContextCounter, ContextScopedStack
 
 if TYPE_CHECKING:
     from .interfaces import Comparator, ICell, IQuery, ISource

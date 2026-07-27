@@ -3,11 +3,11 @@ import inspect
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate
 
-from .data_bases import DataBase
-from .nodes import Query
+from pesto.core.data_bases import DataBase
+from pesto.impl.nodes import Query
 
 if TYPE_CHECKING:
-    from .interfaces import Comparator
+    from pesto.core.types import Comparator
 
 type RichQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 type CallKeyGen[**P, K] = Callable[Concatenate[RichQueryFn[P, Any], P], K]
