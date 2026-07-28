@@ -2,13 +2,15 @@ from typing import TYPE_CHECKING, Any
 from weakref import WeakKeyDictionary, WeakSet
 
 if TYPE_CHECKING:
-    from pesto.data_bases import Comparator, DataBase, Dependencies, INode
-    from pesto.nodes import Query
+    from .data_bases import Comparator, DataBase, Dependencies, INode
+    from .nodes import Query
 
 
 class ComparatorData:
     changed_at: int
     references: WeakSet[INode[Any, Any]]
+
+    __slots__ = ("changed_at", "references")
 
     def __init__(self, now: int) -> None:
         self.changed_at = now
@@ -29,6 +31,8 @@ class Cell[T]:
     value: T
     verified_at: int
     comparators: WeakKeyDictionary[Comparator[T], ComparatorData]
+
+    __slots__ = ("comparators", "value", "verified_at")
 
     def __init__(self, value: T, now: int) -> None:
         self.value = value
@@ -67,6 +71,8 @@ class Cell[T]:
 
 class QueryCell[T](Cell[T]):
     dependencies: WeakKeyDictionary[INode[Any, Any], Comparator[T]]
+
+    __slots__ = ("dependencies",)
 
     def __init__(self, value: T, now: int) -> None:
         super().__init__(value, now)

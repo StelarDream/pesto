@@ -3,8 +3,7 @@ from collections.abc import Callable
 from typing import Any
 from weakref import WeakKeyDictionary
 
-from pesto.context_tools.counter import ContextCounter
-from pesto.context_tools.stacks import ContextScopedStack
+from .context_tools import ContextCounter, ContextScopedStack
 
 type Comparator[T] = Callable[[T, T], bool]
 type Dependencies = dict[INode[Any, Any], Comparator[Any]]
@@ -12,6 +11,8 @@ type Dependencies = dict[INode[Any, Any], Comparator[Any]]
 
 # --- expected contract ---
 class INode[T, C](ABC):
+    __slots__ = ()
+
     @abstractmethod
     def changed_at(self, db: DataBase, comparator: Comparator[T]) -> int:
         raise NotImplementedError

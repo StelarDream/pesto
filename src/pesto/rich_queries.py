@@ -26,6 +26,8 @@ class RichQuery[**P, T, K = Any]:
 
     queries_cache: dict[K, Query[T]]
 
+    __slots__ = ("call_key_gen", "fn", "queries_cache")
+
     def __init__(
         self,
         fn: RichQueryFn[P, T],

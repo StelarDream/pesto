@@ -23,6 +23,8 @@ class CircularDependencyError(Exception):
 
 
 class Source[T](INode[T, Cell[T]], ABC):
+    __slots__ = ("__weakref__",)
+
     @property
     @abstractmethod
     def default(self) -> T:
@@ -86,6 +88,8 @@ class Source[T](INode[T, Cell[T]], ABC):
 class DefaultFactorySource[T](Source[T]):
     default_factory: Callable[[], T]
 
+    __slots__ = ("default_factory",)
+
     def __init__(self, default_factory: Callable[[], T]) -> None:
         self.default_factory = default_factory
 
@@ -97,6 +101,8 @@ class DefaultFactorySource[T](Source[T]):
 class DefaultValueSource[T](Source[T]):
     default_value: T
 
+    __slots__ = ("default_value",)
+
     def __init__(self, default_value: T) -> None:
         self.default_value = default_value
 
@@ -107,6 +113,8 @@ class DefaultValueSource[T](Source[T]):
 
 class Query[T](INode[T, QueryCell[T]]):
     fn: QueryFn[T]
+
+    __slots__ = ("__weakref__", "fn")
 
     def __init__(self, fn: QueryFn[T]) -> None:
         self.fn = fn
@@ -209,3 +217,7 @@ class Query[T](INode[T, QueryCell[T]]):
             return
 
         cell.untrack(node, comparator)
+
+    @property
+    def __wrapped__(self) -> QueryFn[T]:
+        return self.fn

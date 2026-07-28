@@ -9,7 +9,7 @@ from .rich_queries import RichQuery, RichQueryFn
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from pesto.data_bases import Comparator, DataBase, Dependencies, INode
+    from .data_bases import Comparator, DataBase, Dependencies, INode
 
 
 @overload
@@ -33,6 +33,8 @@ def source[T](
 
 
 class query:  # noqa: N801
+    __slots__ = ()
+
     def __new__[**P, T](cls, fn: RichQueryFn[P, T]) -> RichQuery[P, T]:
         return RichQuery(fn)
 
@@ -50,6 +52,8 @@ class query:  # noqa: N801
 
 class StaticDepQuery:
     static_deps: Dependencies
+
+    __slots__ = ("static_deps",)
 
     def __init__(self, deps: Dependencies) -> None:
         self.static_deps = deps
