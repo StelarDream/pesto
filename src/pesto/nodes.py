@@ -127,6 +127,9 @@ class Query[T](INode[T, QueryCell[T]]):
 
         return cell.value
 
+    def depend(self, db: DataBase, comparator: Comparator[T] = eq) -> None:
+        db.add_dep(self, comparator)
+
     def get_dependencies(self, db: DataBase) -> dict[INode[Any, Any], Comparator[T]]:
         cell = db.get_data(self)
         if cell is None:
