@@ -57,7 +57,7 @@ class Source[T](INode[T, Cell[T]], ABC):
 
         return cell.changed_at(comparator)
 
-    def add_ref(
+    def track(
         self,
         db: DataBase,
         node: INode[Any, Any],
@@ -68,9 +68,9 @@ class Source[T](INode[T, Cell[T]], ABC):
             cell = Cell(self.default, db.now())
             db.set_data(self, cell)
 
-        cell.add_ref(node, comparator)
+        cell.track(node, comparator)
 
-    def drop_ref(
+    def untrack(
         self,
         db: DataBase,
         node: INode[Any, Any],
@@ -80,7 +80,7 @@ class Source[T](INode[T, Cell[T]], ABC):
         if cell is None:
             return
 
-        cell.drop_ref(node, comparator)
+        cell.untrack(node, comparator)
 
 
 class DefaultFactorySource[T](Source[T]):
@@ -182,7 +182,7 @@ class Query[T](INode[T, QueryCell[T]]):
 
         return cell.changed_at(comparator)
 
-    def add_ref(
+    def track(
         self,
         db: DataBase,
         node: INode[Any, Any],
@@ -193,9 +193,9 @@ class Query[T](INode[T, QueryCell[T]]):
             cell = self.make_new(db)
             db.set_data(self, cell)
 
-        cell.add_ref(node, comparator)
+        cell.track(node, comparator)
 
-    def drop_ref(
+    def untrack(
         self,
         db: DataBase,
         node: INode[Any, Any],
@@ -205,4 +205,4 @@ class Query[T](INode[T, QueryCell[T]]):
         if cell is None:
             return
 
-        cell.drop_ref(node, comparator)
+        cell.untrack(node, comparator)

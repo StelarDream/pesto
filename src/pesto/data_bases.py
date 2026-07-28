@@ -17,7 +17,7 @@ class INode[T, C](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def add_ref(
+    def track(
         self,
         db: DataBase,
         node: INode[Any, Any],
@@ -26,7 +26,7 @@ class INode[T, C](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def drop_ref(
+    def untrack(
         self,
         db: DataBase,
         node: INode[Any, Any],

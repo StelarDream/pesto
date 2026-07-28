@@ -41,14 +41,14 @@ class Cell[T]:
             return -1
         return data.changed_at
 
-    def add_ref(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
+    def track(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
         data = self.comparators.get(comparator)
         if data is None:
             data = ComparatorData(self.verified_at)
             self.comparators[comparator] = data
         data.add_ref(node)
 
-    def drop_ref(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
+    def untrack(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
         data = self.comparators.get(comparator)
         if data is None:
             return
@@ -93,7 +93,7 @@ class QueryCell[T](Cell[T]):
     ) -> None:
         for node, comparator in dependencies.items():
             self.dependencies[node] = comparator
-            node.add_ref(db, query, comparator)
+            node.track(db, query, comparator)
 
     def reset_dependencies(
         self,
@@ -101,6 +101,6 @@ class QueryCell[T](Cell[T]):
         db: DataBase,
     ) -> None:
         for node, comparator in tuple(self.dependencies.items()):
-            node.drop_ref(db, query, comparator)
+            node.untrack(db, query, comparator)
 
         self.dependencies.clear()
