@@ -1,6 +1,6 @@
 import functools
 from operator import eq
-from typing import TYPE_CHECKING, Any, cast, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from ._types import MISSING, MissingType
 from .nodes import DefaultFactorySource, DefaultValueSource, Query, QueryFn, Source
@@ -24,9 +24,9 @@ def source[T](
     factory: Callable[[], T] | None = None,
 ) -> Source[T]:
 
-    if factory is None:
-        return DefaultValueSource(cast("T", value))
-    if value is MISSING:
+    if value is not MISSING:
+        return DefaultValueSource(value)
+    if factory is not None:
         return DefaultFactorySource(factory)
 
     raise ValueError

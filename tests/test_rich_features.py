@@ -3,6 +3,7 @@ from typing import Literal
 import pytest
 
 from pesto import DataBase, Query, RichQuery, query, source
+from pesto.api import StaticDepQuery
 
 # -- Basic wiring -------------------------------------------------------------
 
@@ -204,3 +205,126 @@ def test_delete_removes_cache_entry_and_forces_recompute() -> None:
 
     assert q.get(db, 5) == 10
     assert len(calls) == 2
+
+
+# -- query.with_deps ----------------------------------------------------------
+
+
+def test_with_deps_returns_static_dep_query() -> None:
+    s = source(1)
+    result = query.with_deps(s)
+    assert isinstance(result, StaticDepQuery)
+
+
+def test_with_deps_decorator_produces_rich_query() -> None:
+    s = source(0)
+
+    @query.with_deps(s)
+    def q(db: DataBase, x: int) -> int:
+        return x
+
+    assert isinstance(q, RichQuery)
+
+
+def test_with_deps_plain_produces_query() -> None:
+    s = source(0)
+
+    @query.with_deps(s).plain
+    def q(db: DataBase) -> int:
+        return s.get(db)
+
+    assert isinstance(q, Query)
+    assert q.get(DataBase()) == 0
+
+
+def test_with_deps_registers_static_dep_on_call() -> None:
+    db = DataBase()
+    s = source(1)
+    outer_calls: list[int] = []
+
+    @query.with_deps(s)
+    def q(db: DataBase) -> int:
+        return s.get(db)
+
+    @query.plain
+    def outer(db: DataBase) -> int:
+        outer_calls.append(0)
+        return q.get(db)
+
+    assert outer.get(db) == 1
+    assert len(outer_calls) == 1
+
+    s.set(db, 2)
+
+    assert outer.get(db) == 2
+    assert len(outer_calls) == 2
+
+
+def test_with_deps_plain_registers_static_dep() -> None:
+    db = DataBase()
+    s = source(10)
+    outer_calls: list[int] = []
+
+    @query.with_deps(s).plain
+    def q(db: DataBase) -> int:
+        return s.get(db)
+
+    @query.plain
+    def outer(db: DataBase) -> int:
+        outer_calls.append(0)
+        return q.get(db)
+
+    assert outer.get(db) == 10
+    s.set(db, 20)
+    assert outer.get(db) == 20
+    assert len(outer_calls) == 2
+
+
+def test_with_deps_custom_comparator_suppresses_recompute() -> None:
+    db = DataBase()
+    s = source(1)
+    q_calls: list[int] = []
+
+    def always_equal(x: object, y: object) -> Literal[True]:
+        return True
+
+    # q tracks s with always_equal but does NOT read s.get(db) inside,
+    # so the comparator is not overridden by the implicit eq from s.get.
+    @query.with_deps((s, always_equal)).plain
+    def q(db: DataBase) -> int:
+        q_calls.append(0)
+        return 42
+
+    assert q.get(db) == 42
+    assert len(q_calls) == 1
+
+    s.set(db, 99)
+    # s changed but always_equal says "no change" → q should not recompute
+    assert q.get(db) == 42
+    assert len(q_calls) == 1
+
+
+def test_with_deps_multiple_deps() -> None:
+    db = DataBase()
+    s1 = source(1)
+    s2 = source(2)
+    outer_calls: list[int] = []
+
+    @query.with_deps(s1, s2)
+    def q(db: DataBase) -> int:
+        return s1.get(db) + s2.get(db)
+
+    @query.plain
+    def outer(db: DataBase) -> int:
+        outer_calls.append(0)
+        return q.get(db)
+
+    assert outer.get(db) == 3
+
+    s1.set(db, 10)
+    assert outer.get(db) == 12
+    assert len(outer_calls) == 2
+
+    s2.set(db, 20)
+    assert outer.get(db) == 30
+    assert len(outer_calls) == 3
