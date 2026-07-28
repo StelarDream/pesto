@@ -166,7 +166,7 @@ def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
     with pytest.raises(ValueError, match="boom"):
         q.get(db)
 
-    assert q.cell(db) is None
+    assert db.get_data(q) is None
     assert list(db.stack) == []
 
 
@@ -207,8 +207,8 @@ def test_raise_mid_nested_query_unwinds_whole_chain() -> None:
     with pytest.raises(ValueError, match="inner boom"):
         outer.get(db)
 
-    assert inner.cell(db) is None
-    assert outer.cell(db) is None
+    assert db.get_data(inner) is None
+    assert db.get_data(outer) is None
     assert list(db.stack) == []
 
 
@@ -278,7 +278,7 @@ def test_self_cycle_raises_circular_dependency_error() -> None:
     with pytest.raises(CircularDependencyError) as exc_info:
         q.get(db)
 
-    assert exc_info.value.query is q
+    assert exc_info.value.node is q
     assert exc_info.value.chain == [q, q]
     assert list(db.stack) == []
 
@@ -378,7 +378,7 @@ def test_cycle_detected_partway_through_chain_leaves_earlier_cells_uncached() ->
         a.get(db)
 
     assert exc_info.value.chain == [a, b, c, b]
-    assert a.cell(db) is None
-    assert b.cell(db) is None
-    assert c.cell(db) is None
+    assert db.get_data(a) is None
+    assert db.get_data(b) is None
+    assert db.get_data(c) is None
     assert list(db.stack) == []

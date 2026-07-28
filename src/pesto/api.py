@@ -1,13 +1,11 @@
 from typing import TYPE_CHECKING, cast, overload
 
-from pesto._types import MISSING, MissingType
-from pesto.impl.nodes import DefaultFactorySource, DefaultValueSource, Query, Source
-from pesto.tooling.rich_queries import RichQuery, RichQueryFn
+from ._types import MISSING, MissingType
+from .nodes import DefaultFactorySource, DefaultValueSource, Query, QueryFn, Source
+from .rich_queries import RichQuery, RichQueryFn
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from pesto.core.types import QueryFn
 
 
 @overload

@@ -6,6 +6,8 @@ from typing import Self
 class ContextCounter(Iterator[int], Sized):
     count: ContextVar[int]
 
+    __slots__ = ("count",)
+
     def __init__(self, start: int = 0) -> None:
         self.count = ContextVar(f"{type(self)}.context_int", default=start)
 

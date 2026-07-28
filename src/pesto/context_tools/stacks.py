@@ -64,6 +64,8 @@ class ContextScopedStack[**P, T]:
     context_frame: ContextVar[StackFrame[T] | None]
     fn: Callable[P, T]
 
+    __slots__ = ("context_frame", "fn")
+
     def __init__(self, fn: Callable[..., T]) -> None:
         self.fn = fn
         self.context_frame = ContextVar(
