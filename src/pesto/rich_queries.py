@@ -21,23 +21,6 @@ def inspect_call_key_gen[**P](
     return bound.args, tuple(sorted(bound.kwargs.items()))
 
 
-class _BoundCall[**P, T]:
-    __slots__ = ("args", "kwargs", "rich_query")
-
-    def __init__(
-        self,
-        rich_query: RichQuery[P, T],
-        args: tuple[Any, ...],
-        kwargs: dict[str, Any],
-    ) -> None:
-        self.rich_query = rich_query
-        self.args = args
-        self.kwargs = kwargs
-
-    def __call__(self, db: DataBase) -> T:
-        return self.rich_query.fn(db, *self.args, **self.kwargs)
-
-
 class RichQuery[**P, T, K = Any]:
     fn: RichQueryFn[P, T]
     call_key_gen: CallKeyGen[P, K]
@@ -61,7 +44,13 @@ class RichQuery[**P, T, K = Any]:
         if query is not None:
             return query
 
-        query = Query(_BoundCall(self, args, kwargs))
+        fn = self.fn
+
+        @functools.wraps(fn)
+        def wrapper(db: DataBase) -> T:
+            return fn(db, *args, **kwargs)
+
+        query = Query(wrapper)
 
         self.queries_cache[key] = query
         return query
