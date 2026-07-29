@@ -34,6 +34,13 @@ class ComparatorData:
     def drop_ref(self, node: INode[Any, Any]) -> None:
         self.references.discard(node)
 
+    def __getstate__(self) -> tuple[int, set[INode[Any, Any]]]:
+        return self.changed_at, set(self.references)
+
+    def __setstate__(self, state: tuple[int, set[INode[Any, Any]]]) -> None:
+        self.changed_at, references = state
+        self.references = WeakSet(references)
+
 
 class Cell[T]:
     value: T
@@ -85,6 +92,16 @@ class Cell[T]:
         self.verified_at = now
         self.value = new
 
+    def __getstate__(self) -> tuple[T, int, dict[Comparator[T], ComparatorData]]:
+        return self.value, self.verified_at, dict(self.comparators)
+
+    def __setstate__(
+        self,
+        state: tuple[T, int, dict[Comparator[T], ComparatorData]],
+    ) -> None:
+        self.value, self.verified_at, comparators = state
+        self.comparators = WeakKeyDictionary(comparators)
+
 
 class QueryCell[T](Cell[T]):
     dependencies: WeakKeyDictionary[INode[Any, Any], Comparator[T]]
@@ -127,3 +144,31 @@ class QueryCell[T](Cell[T]):
             node.untrack(db, query, comparator)
 
         self.dependencies.clear()
+
+    def __getstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+    ) -> tuple[
+        T,
+        int,
+        dict[Comparator[T], ComparatorData],
+        dict[INode[Any, Any], Comparator[T]],
+    ]:
+        return (
+            self.value,
+            self.verified_at,
+            dict(self.comparators),
+            dict(self.dependencies),
+        )
+
+    def __setstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        state: tuple[
+            T,
+            int,
+            dict[Comparator[T], ComparatorData],
+            dict[INode[Any, Any], Comparator[T]],
+        ],
+    ) -> None:
+        self.value, self.verified_at, comparators, dependencies = state
+        self.comparators = WeakKeyDictionary(comparators)
+        self.dependencies = WeakKeyDictionary(dependencies)
