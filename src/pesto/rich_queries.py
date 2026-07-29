@@ -10,19 +10,32 @@ type RichQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 type CallKeyGen[**P, K] = Callable[Concatenate[RichQueryFn[P, Any], P], K]
 
 
-@functools.cache
-def inspect_signature(fn: Callable[..., Any]) -> inspect.Signature:
-    return inspect.signature(fn)
-
-
 def inspect_call_key_gen[**P](
     fn: RichQueryFn[P, Any],
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> tuple[tuple[Any, ...], tuple[tuple[str, Any], ...]]:
-    sig = inspect_signature(fn).bind(None, *args, **kwargs)
-    sig.apply_defaults()
-    return sig.args, tuple(sorted(sig.kwargs.items()))
+    sig = functools.cache(inspect.signature)(fn)
+    bound = sig.bind(None, *args, **kwargs)
+    bound.apply_defaults()
+    return bound.args, tuple(sorted(bound.kwargs.items()))
+
+
+class _BoundCall[**P, T]:
+    __slots__ = ("args", "kwargs", "rich_query")
+
+    def __init__(
+        self,
+        rich_query: RichQuery[P, T],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> None:
+        self.rich_query = rich_query
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, db: DataBase) -> T:
+        return self.rich_query.fn(db, *self.args, **self.kwargs)
 
 
 class RichQuery[**P, T, K = Any]:
@@ -31,7 +44,7 @@ class RichQuery[**P, T, K = Any]:
 
     queries_cache: dict[K, Query[T]]
 
-    __slots__ = ("__qualname__", "call_key_gen", "fn", "queries_cache")
+    __slots__ = ("call_key_gen", "fn", "queries_cache")
 
     def __init__(
         self,
@@ -48,11 +61,7 @@ class RichQuery[**P, T, K = Any]:
         if query is not None:
             return query
 
-        @functools.wraps(self.fn)
-        def wrapper(db: DataBase) -> T:
-            return self.fn(db, *args, **kwargs)
-
-        query = Query(wrapper)
+        query = Query(_BoundCall(self, args, kwargs))
 
         self.queries_cache[key] = query
         return query
@@ -80,14 +89,3 @@ class RichQuery[**P, T, K = Any]:
     @property
     def __wrapped__(self) -> RichQueryFn[P, T]:
         return self.fn
-
-    def __getstate__(
-        self,
-    ) -> tuple[RichQueryFn[P, T], CallKeyGen[P, K], dict[K, Query[T]]]:
-        return self.fn, self.call_key_gen, self.queries_cache
-
-    def __setstate__(
-        self,
-        state: tuple[RichQueryFn[P, T], CallKeyGen[P, K], dict[K, Query[T]]],
-    ) -> None:
-        self.fn, self.call_key_gen, self.queries_cache = state

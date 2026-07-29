@@ -96,16 +96,3 @@ class DataBase:
 
     def now(self) -> int:
         return self.revisions.now()
-
-    def __getstate__(self) -> tuple[int, dict[INode[Any, Any], Any]]:
-        if self.stack.peek_or(None) is not None:
-            msg = "cannot get state snapshot while on active computation"
-            raise ValueError(msg)
-
-        return self.now(), dict(self.node_data)
-
-    def __setstate__(self, state: tuple[int, dict[INode[Any, Any], Any]]) -> None:
-        revision, node_data = state
-        self.node_data = WeakKeyDictionary(node_data)
-        self.stack = ContextScopedStack(DBStackFrame)
-        self.revisions = ContextCounter(revision)

@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from operator import eq
-from typing import Any, Self
+from typing import Any
 
 from .cells import Cell, QueryCell
 from .data_bases import Comparator, DataBase, INode
 
 type QueryFn[T] = Callable[[DataBase], T]
-
 
 class CircularDependencyError(Exception):
     def __init__(
@@ -97,9 +96,6 @@ class DefaultFactorySource[T](Source[T]):
     def default(self) -> T:
         return self.default_factory()
 
-    def __reduce__(self) -> tuple[type[Self], tuple[Callable[[], T]]]:
-        return type(self), (self.default_factory,)
-
 
 class DefaultValueSource[T](Source[T]):
     default_value: T
@@ -112,9 +108,6 @@ class DefaultValueSource[T](Source[T]):
     @property
     def default(self) -> T:
         return self.default_value
-
-    def __reduce__(self) -> tuple[type[Self], tuple[T]]:
-        return type(self), (self.default_value,)
 
 
 class Query[T](INode[T, QueryCell[T]]):
@@ -227,6 +220,3 @@ class Query[T](INode[T, QueryCell[T]]):
     @property
     def __wrapped__(self) -> QueryFn[T]:
         return self.fn
-
-    def __reduce__(self) -> tuple[type[Self], tuple[QueryFn[T]]]:
-        return type(self), (self.fn,)
