@@ -1,3 +1,4 @@
+import functools
 from operator import eq
 from typing import TYPE_CHECKING, Any, overload
 
@@ -34,16 +35,10 @@ class query:  # noqa: N801
     __slots__ = ()
 
     def __new__[**P, T](cls, fn: RichQueryFn[P, T]) -> RichQuery[P, T]:
-        if hasattr(fn, "__qualname__"):
-            fn.__qualname__ = f"{fn.__qualname__}.__wrapped__"
-
         return RichQuery(fn)
 
     @staticmethod
     def plain[T](fn: QueryFn[T]) -> Query[T]:
-        if hasattr(fn, "__qualname__"):
-            fn.__qualname__ = f"{fn.__qualname__}.__wrapped__"
-
         return Query(fn)
 
     @staticmethod
@@ -52,23 +47,6 @@ class query:  # noqa: N801
     ) -> StaticDepQuery:
         deps_dict = dict(dep if isinstance(dep, tuple) else (dep, eq) for dep in deps)
         return StaticDepQuery(deps_dict)
-
-
-class StaticDepWrapper[**P, T]:
-    deps: Dependencies
-    fn: RichQueryFn[P, T]
-
-    __slots__ = ("deps", "fn")
-
-    def __init__(self, deps: Dependencies, fn: RichQueryFn[P, T]) -> None:
-        self.deps = deps
-        self.fn = fn
-
-    def __call__(self, db: DataBase, *args: P.args, **kwargs: P.kwargs) -> T:
-        frame = db.stack.peek_or(None)
-        if frame is not None:
-            frame.dependencies.update(self.deps)
-        return self.fn(db, *args, **kwargs)
 
 
 class StaticDepQuery:
@@ -80,13 +58,21 @@ class StaticDepQuery:
         self.static_deps = deps
 
     def __call__[**P, T](self, fn: RichQueryFn[P, T]) -> RichQuery[P, T]:
-        if hasattr(fn, "__qualname__"):
-            fn.__qualname__ = f"{fn.__qualname__}.__wrapped__.fn"
+        @functools.wraps(fn)
+        def wrapper(db: DataBase, *args: P.args, **kwargs: P.kwargs) -> T:
+            frame = db.stack.peek_or(None)
+            if frame is not None:
+                frame.dependencies.update(self.static_deps)
+            return fn(db, *args, **kwargs)
 
-        return RichQuery(StaticDepWrapper(self.static_deps, fn))
+        return RichQuery(wrapper)
 
     def plain[T](self, fn: QueryFn[T]) -> Query[T]:
-        if hasattr(fn, "__qualname__"):
-            fn.__qualname__ = f"{fn.__qualname__}.__wrapped__.fn"
+        @functools.wraps(fn)
+        def wrapper(db: DataBase) -> T:
+            frame = db.stack.peek_or(None)
+            if frame is not None:
+                frame.dependencies.update(self.static_deps)
+            return fn(db)
 
-        return Query(StaticDepWrapper(self.static_deps, fn))
+        return Query(wrapper)

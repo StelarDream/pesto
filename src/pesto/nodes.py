@@ -98,7 +98,8 @@ class DefaultFactorySource[T](Source[T]):
         return self.default_factory()
 
     def __reduce__(self) -> tuple[type[Self], tuple[Callable[[], T]]]:
-        return type(self), (self.default_factory, )
+        return type(self), (self.default_factory,)
+
 
 class DefaultValueSource[T](Source[T]):
     default_value: T
@@ -113,7 +114,8 @@ class DefaultValueSource[T](Source[T]):
         return self.default_value
 
     def __reduce__(self) -> tuple[type[Self], tuple[T]]:
-        return type(self), (self.default_value, )
+        return type(self), (self.default_value,)
+
 
 class Query[T](INode[T, QueryCell[T]]):
     fn: QueryFn[T]

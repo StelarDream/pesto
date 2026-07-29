@@ -69,11 +69,11 @@ def test_cell_roundtrip() -> None:
 
 def test_query_cell_roundtrip() -> None:
     src = DefaultValueSource(0)
-    qcell = QueryCell(99, 1)
-    qcell.dependencies[src] = eq
-    src2, qcell2 = roundtrip((src, qcell))
-    assert qcell2.value == 99
-    assert src2 in qcell2.dependencies
+    query_cell = QueryCell(99, 1)
+    query_cell.dependencies[src] = eq
+    src2, query_cell_2 = roundtrip((src, query_cell))
+    assert query_cell_2.value == 99
+    assert src2 in query_cell_2.dependencies
 
 
 # --- Nodes --------------------------------------------------------------------

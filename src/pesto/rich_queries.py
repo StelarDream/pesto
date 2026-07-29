@@ -1,6 +1,6 @@
+import functools
 import inspect
 from collections.abc import Callable
-from functools import Placeholder, cache, partial, wraps
 from typing import Any, Concatenate
 
 from .data_bases import Comparator, DataBase
@@ -10,7 +10,7 @@ type RichQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 type CallKeyGen[**P, K] = Callable[Concatenate[RichQueryFn[P, Any], P], K]
 
 
-@cache
+@functools.cache
 def inspect_signature(fn: Callable[..., Any]) -> inspect.Signature:
     return inspect.signature(fn)
 
@@ -31,7 +31,7 @@ class RichQuery[**P, T, K = Any]:
 
     queries_cache: dict[K, Query[T]]
 
-    __slots__ = ("call_key_gen", "fn", "queries_cache")
+    __slots__ = ("__qualname__", "call_key_gen", "fn", "queries_cache")
 
     def __init__(
         self,
@@ -48,10 +48,11 @@ class RichQuery[**P, T, K = Any]:
         if query is not None:
             return query
 
-        if args or kwargs:
-            query = Query(partial(self.fn, Placeholder, *args, **kwargs))
-        else:
-            query = Query(self.fn)
+        @functools.wraps(self.fn)
+        def wrapper(db: DataBase) -> T:
+            return self.fn(db, *args, **kwargs)
+
+        query = Query(wrapper)
 
         self.queries_cache[key] = query
         return query
@@ -64,7 +65,7 @@ class RichQuery[**P, T, K = Any]:
         self,
         comparator: Comparator[T],
     ) -> Callable[Concatenate[DataBase, P], T]:
-        @wraps(self.fn)
+        @functools.wraps(self.fn)
         def inner(db: DataBase, *args: P.args, **kwargs: P.kwargs) -> T:
             return self.get_query(*args, **kwargs).get(db, comparator)
 
