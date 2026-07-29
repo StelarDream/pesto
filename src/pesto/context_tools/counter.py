@@ -11,6 +11,9 @@ class ContextCounter(Iterator[int], Sized):
     def __init__(self, start: int = 0) -> None:
         self.count = ContextVar(f"{type(self)}.context_int", default=start)
 
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}(count={self.count})"
+
     def now(self) -> int:
         return self.count.get()
 
@@ -29,3 +32,6 @@ class ContextCounter(Iterator[int], Sized):
         count = self.count.get() + 1
         self.count.set(count)
         return count
+
+    def __reduce__(self) -> tuple[type[Self], tuple[int]]:
+        return type(self), (self.now(),)

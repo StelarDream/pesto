@@ -131,6 +131,20 @@ class ContextScopedStack[**P, T]:
         self.context_frame.set(frame.parent)
         return frame.value
 
+    def __iter__(self) -> Generator[T]:
+        current = self.context_frame.get()
+        if current is None:
+            return
+        for frame in current:
+            yield frame.value
+
+    def __contains__(self, item: T) -> bool:
+        frame = self.context_frame.get()
+        if frame is None:
+            return False
+
+        return item in frame
+
     def __getstate__(self) -> tuple[list[T], Callable[P, T]]:
         frame = self.context_frame.get()
         if frame is None:
@@ -150,17 +164,3 @@ class ContextScopedStack[**P, T]:
             default=None,
         )
         self.context_frame.set(frame)
-
-    def __iter__(self) -> Generator[T]:
-        current = self.context_frame.get()
-        if current is None:
-            return
-        for frame in current:
-            yield frame.value
-
-    def __contains__(self, item: T) -> bool:
-        frame = self.context_frame.get()
-        if frame is None:
-            return False
-
-        return item in frame

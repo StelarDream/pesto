@@ -1,6 +1,6 @@
-import functools
 import inspect
 from collections.abc import Callable
+from functools import Placeholder, cache, partial, wraps
 from typing import Any, Concatenate
 
 from .data_bases import Comparator, DataBase
@@ -10,12 +10,17 @@ type RichQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 type CallKeyGen[**P, K] = Callable[Concatenate[RichQueryFn[P, Any], P], K]
 
 
-def inspect_cell_key_gen[**P](
+@cache
+def inspect_signature(fn: Callable[..., Any]) -> inspect.Signature:
+    return inspect.signature(fn)
+
+
+def inspect_call_key_gen[**P](
     fn: RichQueryFn[P, Any],
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> tuple[tuple[Any, ...], tuple[tuple[str, Any], ...]]:
-    sig = inspect.signature(fn).bind(None, *args, **kwargs)
+    sig = inspect_signature(fn).bind(None, *args, **kwargs)
     sig.apply_defaults()
     return sig.args, tuple(sorted(sig.kwargs.items()))
 
@@ -31,7 +36,7 @@ class RichQuery[**P, T, K = Any]:
     def __init__(
         self,
         fn: RichQueryFn[P, T],
-        call_key_gen: CallKeyGen[P, K] = inspect_cell_key_gen,
+        call_key_gen: CallKeyGen[P, K] = inspect_call_key_gen,
     ) -> None:
         self.fn = fn
         self.call_key_gen = call_key_gen
@@ -43,19 +48,23 @@ class RichQuery[**P, T, K = Any]:
         if query is not None:
             return query
 
-        query = Query(lambda db: self.fn(db, *args, **kwargs))
+        if args or kwargs:
+            query = Query(partial(self.fn, Placeholder, *args, **kwargs))
+        else:
+            query = Query(self.fn)
+
         self.queries_cache[key] = query
         return query
 
     def delete(self, *args: P.args, **kwargs: P.kwargs) -> None:
         call_id = self.call_key_gen(self.fn, *args, **kwargs)
-        del self.queries_cache[call_id]
+        self.queries_cache.pop(call_id, None)
 
     def getter(
         self,
         comparator: Comparator[T],
     ) -> Callable[Concatenate[DataBase, P], T]:
-        @functools.wraps(self.fn)
+        @wraps(self.fn)
         def inner(db: DataBase, *args: P.args, **kwargs: P.kwargs) -> T:
             return self.get_query(*args, **kwargs).get(db, comparator)
 
@@ -70,3 +79,14 @@ class RichQuery[**P, T, K = Any]:
     @property
     def __wrapped__(self) -> RichQueryFn[P, T]:
         return self.fn
+
+    def __getstate__(
+        self,
+    ) -> tuple[RichQueryFn[P, T], CallKeyGen[P, K], dict[K, Query[T]]]:
+        return self.fn, self.call_key_gen, self.queries_cache
+
+    def __setstate__(
+        self,
+        state: tuple[RichQueryFn[P, T], CallKeyGen[P, K], dict[K, Query[T]]],
+    ) -> None:
+        self.fn, self.call_key_gen, self.queries_cache = state

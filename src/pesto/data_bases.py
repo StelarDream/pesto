@@ -46,6 +46,11 @@ class DBStackFrame:
         self.active = query
         self.dependencies = {}
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}(active={self.active!r}, deps={self.dependencies!r})"
+        )
+
 
 class DataBase:
     node_data: WeakKeyDictionary[INode[Any, Any], Any]
@@ -58,6 +63,15 @@ class DataBase:
         self.node_data = WeakKeyDictionary()
         self.stack = ContextScopedStack(DBStackFrame)
         self.revisions = ContextCounter()
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}("
+            f"revision={self.revisions.now()!r}, "
+            f"stack={self.stack!r}, "
+            f"data={self.node_data!r}"
+            ")"
+        )
 
     def get_data[C](self, node: INode[Any, C]) -> C | None:
         return self.node_data.get(node, None)
@@ -82,3 +96,16 @@ class DataBase:
 
     def now(self) -> int:
         return self.revisions.now()
+
+    def __getstate__(self) -> tuple[int, dict[INode[Any, Any], Any]]:
+        if self.stack.peek_or(None) is not None:
+            msg = "cannot get state snapshot while on active computation"
+            raise ValueError(msg)
+
+        return self.now(), dict(self.node_data)
+
+    def __setstate__(self, state: tuple[int, dict[INode[Any, Any], Any]]) -> None:
+        revision, node_data = state
+        self.node_data = WeakKeyDictionary(node_data)
+        self.stack = ContextScopedStack(DBStackFrame)
+        self.revisions = ContextCounter(revision)

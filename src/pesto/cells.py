@@ -16,6 +16,14 @@ class ComparatorData:
         self.changed_at = now
         self.references = WeakSet()
 
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}("
+            f"changed_at={self.changed_at!r}, "
+            f"references={self.references!r}"
+            ")"
+        )
+
     @property
     def ref_count(self) -> int:
         return len(self.references)
@@ -25,6 +33,13 @@ class ComparatorData:
 
     def drop_ref(self, node: INode[Any, Any]) -> None:
         self.references.discard(node)
+
+    def __getstate__(self) -> tuple[int, set[INode[Any, Any]]]:
+        return self.changed_at, set(self.references)
+
+    def __setstate__(self, state: tuple[int, set[INode[Any, Any]]]) -> None:
+        self.changed_at, references = state
+        self.references = WeakSet(references)
 
 
 class Cell[T]:
@@ -38,6 +53,15 @@ class Cell[T]:
         self.value = value
         self.verified_at = now
         self.comparators = WeakKeyDictionary()
+
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}("
+            f"value={self.value!r}, "
+            f"verified_at={self.verified_at!r}, "
+            f"comparators={self.comparators!r}"
+            ")"
+        )
 
     def changed_at(self, comparator: Comparator[T]) -> int:
         data = self.comparators.get(comparator)
@@ -67,6 +91,16 @@ class Cell[T]:
 
         self.verified_at = now
         self.value = new
+
+    def __getstate__(self) -> tuple[T, int, dict[Comparator[T], ComparatorData]]:
+        return self.value, self.verified_at, dict(self.comparators)
+
+    def __setstate__(
+        self,
+        state: tuple[T, int, dict[Comparator[T], ComparatorData]],
+    ) -> None:
+        self.value, self.verified_at, comparators = state
+        self.comparators = WeakKeyDictionary(comparators)
 
 
 class QueryCell[T](Cell[T]):
@@ -110,3 +144,31 @@ class QueryCell[T](Cell[T]):
             node.untrack(db, query, comparator)
 
         self.dependencies.clear()
+
+    def __getstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+    ) -> tuple[
+        T,
+        int,
+        dict[Comparator[T], ComparatorData],
+        dict[INode[Any, Any], Comparator[T]],
+    ]:
+        return (
+            self.value,
+            self.verified_at,
+            dict(self.comparators),
+            dict(self.dependencies),
+        )
+
+    def __setstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
+        self,
+        state: tuple[
+            T,
+            int,
+            dict[Comparator[T], ComparatorData],
+            dict[INode[Any, Any], Comparator[T]],
+        ],
+    ) -> None:
+        self.value, self.verified_at, comparators, dependencies = state
+        self.comparators = WeakKeyDictionary(comparators)
+        self.dependencies = WeakKeyDictionary(dependencies)
