@@ -44,12 +44,12 @@ class query:  # noqa: N801
     @staticmethod
     def with_deps(
         *deps: tuple[INode[Any, Any], Comparator[Any]] | INode[Any, Any],
-    ) -> StaticDepQuery:
+    ) -> _StaticDepQuery:
         deps_dict = dict(dep if isinstance(dep, tuple) else (dep, eq) for dep in deps)
-        return StaticDepQuery(deps_dict)
+        return _StaticDepQuery(deps_dict)
 
 
-class StaticDepQuery:
+class _StaticDepQuery:
     static_deps: Dependencies
 
     __slots__ = ("static_deps",)

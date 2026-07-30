@@ -3,7 +3,6 @@ from typing import Literal
 import pytest
 
 from pesto import DataBase, Query, RichQuery, query, source
-from pesto.api import StaticDepQuery
 
 # -- Basic wiring -------------------------------------------------------------
 
@@ -208,12 +207,6 @@ def test_delete_removes_cache_entry_and_forces_recompute() -> None:
 
 
 # -- query.with_deps ----------------------------------------------------------
-
-
-def test_with_deps_returns_static_dep_query() -> None:
-    s = source(1)
-    result = query.with_deps(s)
-    assert isinstance(result, StaticDepQuery)
 
 
 def test_with_deps_decorator_produces_rich_query() -> None:
