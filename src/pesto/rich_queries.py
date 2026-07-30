@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any, Concatenate
 
 from .data_bases import Comparator, DataBase
-from .nodes import Query
+from .queries import Query
 
 type RichQueryFn[**P, T] = Callable[Concatenate[DataBase, P], T]
 type CallKeyGen[**P, K] = Callable[Concatenate[RichQueryFn[P, Any], P], K]

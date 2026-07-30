@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING, Any, overload
 
 from ._types import MISSING, MissingType
 from .data_bases import Comparator, DataBase, Dependencies, INode  # noqa: TC001
-from .nodes import DefaultFactorySource, DefaultValueSource, Query, QueryFn, Source
+from .queries import Query, QueryFn
 from .rich_queries import RichQuery, RichQueryFn
+from .sources import DefaultFactorySource, DefaultValueSource, Source
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -43,7 +44,7 @@ class query:  # noqa: N801
 
     @staticmethod
     def with_deps(
-        *deps: tuple[INode[Any, Any], Comparator[Any]] | INode[Any, Any],
+        *deps: tuple[INode[Any], Comparator[Any]] | INode[Any],
     ) -> _StaticDepQuery:
         deps_dict = dict(dep if isinstance(dep, tuple) else (dep, eq) for dep in deps)
         return _StaticDepQuery(deps_dict)

@@ -6,11 +6,11 @@ from weakref import WeakKeyDictionary
 from .context_tools import ContextCounter, ContextScopedStack
 
 type Comparator[T] = Callable[[T, T], bool]
-type Dependencies = dict[INode[Any, Any], Comparator[Any]]
+type Dependencies = dict[INode[Any], Comparator[Any]]
 
 
 # --- expected contract ---
-class INode[T, C](ABC):
+class INode[T](ABC):
     __slots__ = ()
 
     @abstractmethod
@@ -21,7 +21,7 @@ class INode[T, C](ABC):
     def track(
         self,
         db: DataBase,
-        node: INode[Any, Any],
+        node: INode[Any],
         comparator: Comparator[T],
     ) -> None:
         raise NotImplementedError
@@ -30,19 +30,19 @@ class INode[T, C](ABC):
     def untrack(
         self,
         db: DataBase,
-        node: INode[Any, Any],
+        node: INode[Any],
         comparator: Comparator[T],
     ) -> None:
         raise NotImplementedError
 
 
 class DBStackFrame:
-    active: INode[Any, Any]
+    active: INode[Any]
     dependencies: Dependencies
 
     __slots__ = ("active", "dependencies")
 
-    def __init__(self, query: INode[Any, Any]) -> None:
+    def __init__(self, query: INode[Any]) -> None:
         self.active = query
         self.dependencies = {}
 
@@ -53,8 +53,8 @@ class DBStackFrame:
 
 
 class DataBase:
-    node_data: WeakKeyDictionary[INode[Any, Any], Any]
-    stack: ContextScopedStack[[INode[Any, Any]], DBStackFrame]
+    node_data: WeakKeyDictionary[Any, Any]
+    stack: ContextScopedStack[[INode[Any]], DBStackFrame]
     revisions: ContextCounter
 
     __slots__ = ("node_data", "revisions", "stack")
@@ -73,19 +73,13 @@ class DataBase:
             ")"
         )
 
-    def get_data[C](self, node: INode[Any, C]) -> C | None:
-        return self.node_data.get(node, None)
-
-    def set_data[C](self, node: INode[Any, C], data: C) -> None:
-        self.node_data[node] = data
-
-    def add_dep[T](self, dep: INode[T, Any], comparator: Comparator[T]) -> None:
+    def add_dep[T](self, dep: INode[T], comparator: Comparator[T]) -> None:
         stack = self.stack.peek_or(None)
         if stack is None:
             return
         stack.dependencies[dep] = comparator
 
-    def drop_dep(self, dep: INode[Any, Any]) -> None:
+    def drop_dep(self, dep: INode[Any]) -> None:
         stack = self.stack.peek_or(None)
         if stack is None:
             return
@@ -96,16 +90,3 @@ class DataBase:
 
     def now(self) -> int:
         return self.revisions.now()
-
-    def __getstate__(self) -> tuple[int, dict[INode[Any, Any], Any]]:
-        if self.stack.peek_or(None) is not None:
-            msg = "cannot get state snapshot while on active computation"
-            raise ValueError(msg)
-
-        return self.now(), dict(self.node_data)
-
-    def __setstate__(self, state: tuple[int, dict[INode[Any, Any], Any]]) -> None:
-        revision, node_data = state
-        self.node_data = WeakKeyDictionary(node_data)
-        self.stack = ContextScopedStack(DBStackFrame)
-        self.revisions = ContextCounter(revision)

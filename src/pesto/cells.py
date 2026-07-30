@@ -3,12 +3,12 @@ from weakref import WeakKeyDictionary, WeakSet
 
 if TYPE_CHECKING:
     from .data_bases import Comparator, DataBase, Dependencies, INode
-    from .nodes import Query
+    from .queries import Query
 
 
 class ComparatorData:
     changed_at: int
-    references: WeakSet[INode[Any, Any]]
+    references: WeakSet[INode[Any]]
 
     __slots__ = ("changed_at", "references")
 
@@ -28,18 +28,11 @@ class ComparatorData:
     def ref_count(self) -> int:
         return len(self.references)
 
-    def add_ref(self, node: INode[Any, Any]) -> None:
+    def add_ref(self, node: INode[Any]) -> None:
         self.references.add(node)
 
-    def drop_ref(self, node: INode[Any, Any]) -> None:
+    def drop_ref(self, node: INode[Any]) -> None:
         self.references.discard(node)
-
-    def __getstate__(self) -> tuple[int, set[INode[Any, Any]]]:
-        return self.changed_at, set(self.references)
-
-    def __setstate__(self, state: tuple[int, set[INode[Any, Any]]]) -> None:
-        self.changed_at, references = state
-        self.references = WeakSet(references)
 
 
 class Cell[T]:
@@ -69,14 +62,14 @@ class Cell[T]:
             return -1
         return data.changed_at
 
-    def track(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
+    def track(self, node: INode[Any], comparator: Comparator[T]) -> None:
         data = self.comparators.get(comparator)
         if data is None:
             data = ComparatorData(self.verified_at)
             self.comparators[comparator] = data
         data.add_ref(node)
 
-    def untrack(self, node: INode[Any, Any], comparator: Comparator[T]) -> None:
+    def untrack(self, node: INode[Any], comparator: Comparator[T]) -> None:
         data = self.comparators.get(comparator)
         if data is None:
             return
@@ -92,19 +85,9 @@ class Cell[T]:
         self.verified_at = now
         self.value = new
 
-    def __getstate__(self) -> tuple[T, int, dict[Comparator[T], ComparatorData]]:
-        return self.value, self.verified_at, dict(self.comparators)
-
-    def __setstate__(
-        self,
-        state: tuple[T, int, dict[Comparator[T], ComparatorData]],
-    ) -> None:
-        self.value, self.verified_at, comparators = state
-        self.comparators = WeakKeyDictionary(comparators)
-
 
 class QueryCell[T](Cell[T]):
-    dependencies: WeakKeyDictionary[INode[Any, Any], Comparator[T]]
+    dependencies: WeakKeyDictionary[INode[Any], Comparator[T]]
 
     __slots__ = ("dependencies",)
 
@@ -144,31 +127,3 @@ class QueryCell[T](Cell[T]):
             node.untrack(db, query, comparator)
 
         self.dependencies.clear()
-
-    def __getstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
-        self,
-    ) -> tuple[
-        T,
-        int,
-        dict[Comparator[T], ComparatorData],
-        dict[INode[Any, Any], Comparator[T]],
-    ]:
-        return (
-            self.value,
-            self.verified_at,
-            dict(self.comparators),
-            dict(self.dependencies),
-        )
-
-    def __setstate__(  # pyright: ignore[reportIncompatibleMethodOverride]
-        self,
-        state: tuple[
-            T,
-            int,
-            dict[Comparator[T], ComparatorData],
-            dict[INode[Any, Any], Comparator[T]],
-        ],
-    ) -> None:
-        self.value, self.verified_at, comparators, dependencies = state
-        self.comparators = WeakKeyDictionary(comparators)
-        self.dependencies = WeakKeyDictionary(dependencies)

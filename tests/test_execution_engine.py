@@ -166,7 +166,7 @@ def test_raise_mid_query_writes_no_cell_and_leaves_stack_clean() -> None:
     with pytest.raises(ValueError, match="boom"):
         q.get(db)
 
-    assert db.get_data(q) is None
+    assert q.get_cell(db) is None
     assert list(db.stack) == []
 
 
@@ -207,8 +207,8 @@ def test_raise_mid_nested_query_unwinds_whole_chain() -> None:
     with pytest.raises(ValueError, match="inner boom"):
         outer.get(db)
 
-    assert db.get_data(inner) is None
-    assert db.get_data(outer) is None
+    assert inner.get_cell(db) is None
+    assert outer.get_cell(db) is None
     assert list(db.stack) == []
 
 
@@ -378,7 +378,7 @@ def test_cycle_detected_partway_through_chain_leaves_earlier_cells_uncached() ->
         a.get(db)
 
     assert exc_info.value.chain == [a, b, c, b]
-    assert db.get_data(a) is None
-    assert db.get_data(b) is None
-    assert db.get_data(c) is None
+    assert a.get_cell(db) is None
+    assert b.get_cell(db) is None
+    assert c.get_cell(db) is None
     assert list(db.stack) == []
